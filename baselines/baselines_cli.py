@@ -95,7 +95,9 @@ def run_model(
 
     # Data loaders
     if geometric:
-        train_set, val_set, _ = torch.utils.data.random_split(dataset, [num_train_items, num_val_items, full_dataset_size - num_train_items - num_val_items])
+        train_set, val_set, _ = torch.utils.data.random_split(
+            dataset, [num_train_items, num_val_items, full_dataset_size - num_train_items - num_val_items]
+        )
 
         train_loader = torch_geometric.data.DataLoader(train_set, batch_size=batch_size, num_workers=num_workers, **dataloader_config)
         val_loader = torch_geometric.data.DataLoader(val_set, batch_size=batch_size, num_workers=num_workers, **dataloader_config)
@@ -135,7 +137,7 @@ def run_model(
         train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_model)
     else:
         train_ignite(device, epochs, loss, optimizer, train_loader, val_loader, train_model)
-    logging.info("End training of train_model %s on %s for %s epochs", train_model, device, epochs)
+    logging.info("End training of on %s for %s epochs", device, epochs)
     return train_model, device
 
 
@@ -245,7 +247,7 @@ def train_ignite(device, epochs, loss, optimizer, train_loader, val_loader, trai
     checkpoint_handler = Checkpoint(to_save, DiskSaver(checkpoints_dir, create_dir=True, require_empty=False), n_saved=1)
     trainer.add_event_handler(Events.EPOCH_COMPLETED, checkpoint_handler)
     # Run Training
-    logging.info("Start training of train_model %s on %s for %s epochs", train_model, device, epochs)
+    logging.info("Start training on %s for %s epochs", device, epochs)
     logging.info(f"tensorboard --logdir={artifacts_path}")
     trainer.run(train_loader, max_epochs=epochs)
     pbar.close()
@@ -256,6 +258,7 @@ def create_parser():
     parser.add_argument("--model_str", type=str, help="One of configurations, e.g. 'unet'.", default="unet", required=False)
     parser.add_argument("--resume_checkpoint", type=str, help="torch pt file to be re-loaded.", default=None, required=False)
     parser.add_argument("--data_raw_path", type=str, help="Base dir of raw data", default="./data/raw")
+    parser.add_argument("--submit", type=bool, help="Create submission", default=False)
     parser.add_argument(
         "--data_compressed_path",
         type=str,
@@ -272,7 +275,9 @@ def create_parser():
     parser.add_argument("--file_filter", type=str, default=None, required=False, help='Filter files in the dataset. Defaults to "**/*8ch.h5"')
     parser.add_argument("--limit", type=int, default=None, required=False, help="Cap dataset size at this limit.")
     parser.add_argument("--device", type=str, default=None, required=False, help="Force usage of device.")
-    parser.add_argument("--device_ids", nargs="*", default=None, required=False, help="Whitelist of device ids. If not given, all device ids are taken.")
+    parser.add_argument(
+        "--device_ids", nargs="*", default=None, required=False, help="Whitelist of device ids. If not given, all device ids are taken."
+    )
     parser.add_argument("--data_parallel", default=False, required=False, help="Use DataParallel.", action="store_true")
     parser.add_argument("--num_tests_per_file", default=100, type=int, required=False, help="Number of test slots per file")
     parser.add_argument(
@@ -283,7 +288,11 @@ def create_parser():
         help='If given, submission is evaluated from ground truth zips "ground_truth_[spatio]tempmoral.zip" from this directory.',
     )
     parser.add_argument(
-        "--submission_output_dir", type=str, default=None, required=False, help="If given, submission is stored to this directory instead of current.",
+        "--submission_output_dir",
+        type=str,
+        default=None,
+        required=False,
+        help="If given, submission is stored to this directory instead of current.",
     )
 
     return parser
@@ -338,38 +347,46 @@ def main(args):
         logging.info("Going to run train_model.")
         logging.info(system_status())
         _, device = run_model(
-            train_model=model, dataset=dataset, dataloader_config=dataloader_config, optimizer_config=optimizer_config, geometric=geometric, **(vars(args))
+            train_model=model,
+            dataset=dataset,
+            dataloader_config=dataloader_config,
+            optimizer_config=optimizer_config,
+            geometric=geometric,
+            **(vars(args)),
         )
 
-    competitions = ["temporal", "spatiotemporal"]
+    if args.submit:
+        competitions = ["temporal"]  # , "spatiotemporal"]
 
-    for competition in competitions:
-        additional_args = {}
-        if geometric:
-            processed_dir = str(Path(data_raw_path).parent)
-            additional_args = {
-                "gt": GraphTransformer(processed_dir=processed_dir, raw_dir=data_raw_path, batch_size=1),
-                "processed_dir": processed_dir,
-            }
-        submission = package_submission(
-            data_raw_path=data_raw_path,
-            competition=competition,
-            model=model,
-            model_str=model_str,
-            device=device,
-            h5_compression_params={"compression_level": None},
-            submission_output_dir=Path(args.submission_output_dir if args.submission_output_dir is not None else "."),
-            # batch mode for submission
-            batch_size=1 if geometric else args.batch_size,
-            num_tests_per_file=args.num_tests_per_file,
-            **additional_args,
-        )
-        ground_truth_dir = args.ground_truth_dir
-        if ground_truth_dir is not None:
-            ground_truth_dir = Path(ground_truth_dir)
-            scorecomp.score_participant(ground_truth_archive=str(ground_truth_dir / f"ground_truth_{competition}.zip"), input_archive=str(submission))
-        else:
-            scorecomp.verify_submission(input_archive=submission, competition=competition)
+        for competition in competitions:
+            additional_args = {}
+            if geometric:
+                processed_dir = str(Path(data_raw_path).parent)
+                additional_args = {
+                    "gt": GraphTransformer(processed_dir=processed_dir, raw_dir=data_raw_path, batch_size=1),
+                    "processed_dir": processed_dir,
+                }
+            submission = package_submission(
+                data_raw_path=data_raw_path,
+                competition=competition,
+                model=model,
+                model_str=model_str,
+                device=device,
+                h5_compression_params={"compression_level": None},
+                submission_output_dir=Path(args.submission_output_dir if args.submission_output_dir is not None else "."),
+                # batch mode for submission
+                batch_size=1 if geometric else args.batch_size,
+                num_tests_per_file=args.num_tests_per_file,
+                **additional_args,
+            )
+            ground_truth_dir = args.ground_truth_dir
+            if ground_truth_dir is not None:
+                ground_truth_dir = Path(ground_truth_dir)
+                scorecomp.score_participant(
+                    ground_truth_archive=str(ground_truth_dir / f"ground_truth_{competition}.zip"), input_archive=str(submission)
+                )
+            else:
+                scorecomp.verify_submission(input_archive=submission, competition=competition)
 
 
 if __name__ == "__main__":

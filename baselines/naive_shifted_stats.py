@@ -5,10 +5,13 @@ import matplotlib.pyplot as plt
 import json
 import glob
 
-from baselines.baselines_configs import configs
-from util.h5_util import load_h5_file
+from util.h5_util import load_h5_file, write_data_to_h5
 from metrics.mse import mse
-
+import logging
+from util.logging import t4c_apply_basic_logging_config
+import psutil
+import tempfile
+import zipfile
 
 BASE_FOLDER = "data/raw"
 STATS_FOLDER = "data/stats"
@@ -18,9 +21,84 @@ vol_inds = [0, 2, 4, 6]
 
 
 city_timelag_dict = {
-    "ANTWERP": ["BANGKOK"]
-    # TODO
+    "ANTWERP": ["BANGKOK", "BARCELONA", "MOSCOW"],
+    "ISTANBUL": ["BANGKOK", "MOSCOW"],
+    "BERLIN": ["ANTWERP", "BARCELONA"],
+    "CHICAGO": ["ANTWERP", "BANGKOK", "BARCELONA", "MOSCOW"],  # no info
+    "MELBOURNE": ["ANTWERP", "BANGKOK", "BARCELONA", "MOSCOW"],  # no info
 }
+
+
+def load_all_historic(city, year):
+    all_historic = []
+    for weekday in range(7):
+        all_historic.append(load_h5_file(os.path.join(STATS_FOLDER, f"{city}_{year}_{weekday}.h5")))
+    return np.stack(all_historic)
+
+
+class NaiveStatsTemporal(torch.nn.Module):
+    def __init__(self):
+        """Returns prediction consisting of a weighted average of the last
+        hour."""
+        super(NaiveStatsTemporal, self).__init__()
+        # use 2019-2020 shift from other cities
+        # self.timeshift_arr = load_timeshift(["BANGKOK"])
+        # ["ANTWERP", "BANGKOK", "BARCELONA", "MOSCOW"])
+        self.do_shift_other_cities = True
+
+    def forward(self, x: torch.Tensor, additional_data: torch.Tensor, city: str, *args, **kwargs):
+        x = x.numpy()
+        additional_data = additional_data.numpy()
+
+        stats = load_all_historic(city, 2019)
+        print("loaded stats for city", city, stats.shape)
+
+        preds = np.zeros((len(x), 6, 495, 436, 8))
+
+        for x_idx in range(len(x)):
+            weekday = additional_data[x_idx, 0]
+            time = additional_data[x_idx, 1]
+
+            # Input: data for hour in 2020
+            x_timeslot = x[x_idx].astype(float)
+
+            # times
+            x_times = np.arange(12) + time
+            y_times = np.add([1, 2, 3, 6, 9, 12], 11 + time)
+
+            # get historic data of y time slot
+            out_hist_bef = stats[weekday, y_times]
+
+            # # VERSION 1: compare data from x with stats to get temporal shift
+            # get historic data of x time slot:
+            hist_x = stats[weekday, x_times].astype(float) + 0.01  # to avoid division by zero
+            # get shift from hour before (2020 / 2019)
+            shift_2020_2019 = x_timeslot / hist_x
+            # set all to 1 which were division by close to zero
+            shift_2020_2019[hist_x == 0.01] = 1
+            out_hist = out_hist_bef * np.mean(shift_2020_2019, axis=0)
+
+            # # VERSION 2: Get tempotal shift from other cities
+            # incorporate timeshift from other cityes
+            # if self.do_shift_other_cities:
+            #     day_shifts = self.timeshift_arr[:, int(weekday), y_times]
+            #     out_hist = out_hist_bef.copy()
+            #     for slot in range(6):
+            #         out_hist[slot, :, :, vol_inds] = out_hist[slot, :, :, vol_inds] * day_shifts[0, slot]
+            #         out_hist[slot, :, :, speed_inds] = out_hist[slot, :, :, speed_inds] * day_shifts[1, slot]
+
+            preds[x_idx] = out_hist
+
+        # Convert the float values from the operation back to uint8
+        x = preds.astype(np.uint8)
+        # Set all speeds to 0 where there is no volume in the corresponding heading
+        x[:, :, :, :, 1] = x[:, :, :, :, 1] * (x[:, :, :, :, 0] > 0)
+        x[:, :, :, :, 3] = x[:, :, :, :, 3] * (x[:, :, :, :, 2] > 0)
+        x[:, :, :, :, 5] = x[:, :, :, :, 5] * (x[:, :, :, :, 4] > 0)
+        x[:, :, :, :, 7] = x[:, :, :, :, 7] * (x[:, :, :, :, 6] > 0)
+
+        x = torch.from_numpy(x).float()
+        return x
 
 
 def weighted_avg(x):
@@ -114,14 +192,44 @@ def eval_on_train_city(test_city, nr_test=5, nr_time_test=5):
     print(mse_res.shape, np.mean(mse_res, axis=0))
 
 
-def submit_city(test_city):
-    """Use an actual test city with no ground truth data available"""
+# # doesn't work and I should rather use the original function in the package
+# def package_submission(prediction, city, submission_output_dir=None):
+#     from pathlib import Path
+
+#     if submission_output_dir is None:
+#         submission_output_dir = Path(".")
+#     submission_output_dir.mkdir(exist_ok=True, parents=True)
+#     submission = submission_output_dir / f"submission_test_{city}.zip"
+#     logging.info(submission)
+
+#     with tempfile.TemporaryDirectory() as temp_dir:
+#         with zipfile.ZipFile(submission, "w") as z:
+#             h5_compression_params = {"compression_level": None}
+#             prediction = prediction.astype(np.uint8)
+#             if logging.getLogger().isEnabledFor(logging.DEBUG):
+#                 logging.debug(str(np.unique(prediction)))
+#             temp_h5 = os.path.join(temp_dir, os.path.basename(competition_file))
+#             arcname = os.path.join(*competition_file.split(os.sep)[-2:])
+#             logging.info(f"  writing h5 file {temp_h5} (RAM {psutil.virtual_memory()[2]}%)")
+#             write_data_to_h5(prediction, temp_h5, **h5_compression_params)
+#             logging.info(f"  adding {temp_h5} as {arcname} (RAM {psutil.virtual_memory()[2]}%)")
+#             z.write(temp_h5, arcname=arcname)
+
+
+def submit_city(test_city, mode="hist"):
+    """
+    Use an actual test city with no ground truth data available
+    mode: one of hist, avg, hist_avg, hist_noshift
+    """
 
     metainfo = load_h5_file(os.path.join(BASE_FOLDER, test_city, f"{test_city}_test_additional_temporal.h5"))
     day_arr = load_h5_file(os.path.join(BASE_FOLDER, test_city, f"{test_city}_test_temporal.h5"))
 
     # use 2019-2020 shift from other cities
     timeshift_arr = load_timeshift(city_timelag_dict[test_city])
+
+    # allocate prediction array
+    prediction = np.zeros(shape=(100, 6, 495, 436, 8), dtype=np.uint8)
 
     for x_idx in range(100):
         weekday = metainfo[x_idx, 0]
@@ -133,21 +241,90 @@ def submit_city(test_city):
         y_times = np.add([1, 2, 3, 6, 9, 12], 11 + time)
 
         # run avg classifier
-        out_avg = weighted_avg(np.expand_dims(x, 0))[0]
+        if "avg" in mode:
+            out_avg = weighted_avg(np.expand_dims(x, 0))[0]
 
         # load historic data from 2019
-        out_hist_bef = get_historic_avg(test_city, 2019, weekday, y_times)
+        if "hist" in mode:
+            out_hist_bef = get_historic_avg(test_city, 2019, weekday, y_times)
 
         # incorporate timeshift
-        day_shifts = timeshift_arr[:, int(weekday), y_times]
-        out_hist = out_hist_bef.copy()
-        for slot in range(6):
-            out_hist[slot, :, :, vol_inds] = out_hist[slot, :, :, vol_inds] * day_shifts[0, slot]
-            out_hist[slot, :, :, speed_inds] = out_hist[slot, :, :, speed_inds] * day_shifts[1, slot]
+        if mode in ["hist_avg", "hist"]:
+            day_shifts = timeshift_arr[:, int(weekday), y_times]
+            out_hist = out_hist_bef.copy()
+            for slot in range(6):
+                out_hist[slot, :, :, vol_inds] = out_hist[slot, :, :, vol_inds] * day_shifts[0, slot]
+                out_hist[slot, :, :, speed_inds] = out_hist[slot, :, :, speed_inds] * day_shifts[1, slot]
 
-        # combine avg and stats predictions
-        hist_avg = np.mean(np.stack((out_hist, out_avg)), axis=0)
+        if mode == "hist_avg":
+            # combine avg and stats predictions
+            pred = np.mean(np.stack((out_hist, out_avg)), axis=0)
+        elif mode == "hist":
+            pred = out_hist
+        elif mode == "hist_noshift":
+            pred = out_hist_bef
+        elif mode == "avg":
+            pred - out_avg
+        else:
+            raise RuntimeError("Invalid mode argument")
+
+
+def create_test_data(test_city, use_additional_from="BERLIN", out_path=None):
+    # load weekday info
+    with open(os.path.join("data", "weekday2dates_2020.json"), "r") as infile:
+        weekday2date = json.load(infile)
+    # load additional data from some other city, e.g. berlin
+    metainfo = load_h5_file(os.path.join(BASE_FOLDER, use_additional_from, f"{use_additional_from}_test_additional_temporal.h5"))
+
+    # init x and y array
+    train_data_x = np.zeros((100, 12, 495, 436, 8), dtype=np.uint8)
+    train_data_y = np.zeros((100, 6, 495, 436, 8), dtype=np.uint8)
+
+    new_additional_data = np.zeros(metainfo.shape, dtype=np.uint8)
+    ind_counter = 0
+    for day in range(7):
+        possible_dates = weekday2date[str(day)]
+        use_date = np.random.choice(possible_dates)
+
+        print("load file for one day ...", f"{BASE_FOLDER}/{test_city}/training/{use_date}_{test_city}_8ch.h5")
+        day_arr = load_h5_file(f"{BASE_FOLDER}/{test_city}/training/{use_date}_{test_city}_8ch.h5")
+
+        use_times = metainfo[metainfo[:, 0] == day, 1]
+        print("day", day, "times", use_times)
+
+        for i, time in enumerate(use_times):
+            train_data_x[ind_counter] = day_arr[time : time + 12]
+            y_inds = np.add([1, 2, 3, 6, 9, 12], 11 + time)
+            train_data_y[ind_counter] = day_arr[y_inds]
+            new_additional_data[ind_counter] = [day, time]
+            ind_counter += 1
+
+    if out_path is not None:
+        write_data_to_h5(train_data_x, os.path.join(out_path, f"{test_city}_train_data_x.h5"))
+        write_data_to_h5(train_data_y, os.path.join(out_path, f"{test_city}_train_data_y.h5"))
+        write_data_to_h5(new_additional_data, os.path.join(out_path, f"{test_city}_additional.h5"))
+    else:
+        return train_data_x, train_data_y, new_additional_data
 
 
 if __name__ == "__main__":
-    eval_on_train_city("ANTWERP")
+    # arr = load_all_historic("BERLIN", 2019)
+    test_city = "ANTWERP"
+    out_path = os.path.join("data", "temp_test_data")
+    # create data
+    # create_test_data(test_city, out_path=out_path)
+
+    train_data_x = load_h5_file(os.path.join(out_path, f"{test_city}_train_data_x.h5"))
+    train_data_y = load_h5_file(os.path.join(out_path, f"{test_city}_train_data_y.h5"))
+    metainfo = load_h5_file(os.path.join(out_path, f"{test_city}_additional.h5"))
+
+    naive_stats = NaiveStatsTemporal()
+    pred_y = naive_stats(torch.from_numpy(train_data_x), torch.from_numpy(metainfo), test_city)
+    print(pred_y.size())
+    print(mse(pred_y.numpy(), train_data_y))
+
+    # from baselines.naive_weighted_average import NaiveWeightedAverage
+    # naive_stats = NaiveWeightedAverage()
+    # pred_y = naive_stats(torch.from_numpy(train_data_x))  # , torch.from_numpy(metainfo), test_city)
+    # print(pred_y.size())
+    # print(mse(pred_y.numpy(), train_data_y))

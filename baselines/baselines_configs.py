@@ -16,6 +16,8 @@ from baselines.naive_all_constant import NaiveAllConstant
 from baselines.naive_average import NaiveAverage
 from baselines.naive_repeat_last import NaiveRepeatLast
 from baselines.naive_weighted_average import NaiveWeightedAverage
+
+from baselines.naive_shifted_stats import NaiveStatsTemporal
 from baselines.naive_weighted_average_with_sparsity_cutoff import NaiveWeightedAverageWithSparsityCutoff
 from baselines.unet import UNet
 from baselines.unet import UNetTransfomer
@@ -26,8 +28,12 @@ configs = {
         "model_class": UNet,
         # zeropad2d the input data with 0 to ensure same size after upscaling by the network inputs [495, 436] -> [496, 448]
         "model_config": {"in_channels": 12 * 8, "n_classes": 6 * 8, "depth": 5, "wf": 6, "padding": True, "up_mode": "upconv", "batch_norm": True},
-        "dataset_config": {"transform": partial(UNetTransfomer.unet_pre_transform, stack_channels_on_time=True, zeropad2d=(6, 6, 1, 0), batch_dim=False)},
-        "pre_transform": partial(UNetTransfomer.unet_pre_transform, stack_channels_on_time=True, zeropad2d=(6, 6, 1, 0), batch_dim=True, from_numpy=True),
+        "dataset_config": {
+            "transform": partial(UNetTransfomer.unet_pre_transform, stack_channels_on_time=True, zeropad2d=(6, 6, 1, 0), batch_dim=False)
+        },
+        "pre_transform": partial(
+            UNetTransfomer.unet_pre_transform, stack_channels_on_time=True, zeropad2d=(6, 6, 1, 0), batch_dim=True, from_numpy=True
+        ),
         "post_transform": partial(UNetTransfomer.unet_post_transform, stack_channels_on_time=True, crop=(6, 6, 1, 0), batch_dim=True),
     },
     "naive_all_zero": {"model_class": NaiveAllConstant, "model_config": {"fill_value": 0}},
@@ -36,6 +42,7 @@ configs = {
     "naive_repeat_last": {"model_class": NaiveRepeatLast},
     "naive_average": {"model_class": NaiveAverage},
     "naive_weighted_average": {"model_class": NaiveWeightedAverage},
+    "naive_stats": {"model_class": NaiveStatsTemporal},
     "naive_weighted_average_with_sparsity_cutoff": {"model_class": NaiveWeightedAverageWithSparsityCutoff},
     "gcn": {
         "model_class": Graph_resnet,
