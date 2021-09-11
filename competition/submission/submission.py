@@ -59,6 +59,7 @@ def package_submission(
     submission = submission_output_dir / f"submission_{model_str}_{competition}_{tstamp}.zip"
     logging.info(submission)
 
+    # competition_files = [os.path.join("data", "temp_test_data", f"ANTWERP_train_data_x.h5")]
     competition_files = glob.glob(f"{data_raw_path}/**/*test_{competition}.h5", recursive=True)
 
     assert len(competition_files) > 0
@@ -71,6 +72,7 @@ def package_submission(
         with zipfile.ZipFile(submission, "w") as z:
             for competition_file in competition_files:
                 logging.info(f"  running model on {competition_file} (RAM {psutil.virtual_memory()[2]}%)")
+                # city = "ANTWERP"  
                 city = re.search(r".*/([A-Z]+)_test_", competition_file).group(1)
                 if model_dict is not None:
                     model = model_dict[city]
@@ -91,6 +93,9 @@ def package_submission(
                         batch_end: np.ndarray = batch_start + batch_size
                         test_data: np.ndarray = load_h5_file(competition_file, sl=slice(batch_start, batch_end), to_torch=False)
                         additional_data = load_h5_file(competition_file.replace("test", "test_additional"), sl=slice(batch_start, batch_end), to_torch=False)
+                        # additional_data = load_h5_file(
+                        #     competition_file.replace("_train_data_x", "_additional"), sl=slice(batch_start, batch_end), to_torch=False
+                        # )
 
                         if pre_transform is not None:
                             test_data: Union[torch.Tensor, torch_geometric.data.Data] = pre_transform(test_data, city=city, **additional_transform_args)
@@ -109,6 +114,12 @@ def package_submission(
                         batch_prediction = np.clip(batch_prediction, 0, 255)
                         # clipping is important as assigning float array to uint8 array has not the intended effect.... (see `test_submission.test_assign_reload_floats)
                         prediction[batch_start:batch_end] = batch_prediction
+
+                        # from metrics.mse import mse
+                        # gt = load_h5_file(os.path.join("data", "temp_test_data", f"ANTWERP_train_data_y.h5"))
+                        # print(batch_prediction.shape, gt.shape)
+                        # print("MSE", mse(batch_prediction, gt))
+
                 unique_values = np.unique(prediction)
                 logging.info(f"  {len(unique_values)} unique values in prediction in the range [{np.min(prediction)}, {np.max(prediction)}]")
                 if logging.getLogger().isEnabledFor(logging.DEBUG):
