@@ -161,7 +161,9 @@ class T4CGeometricDataset(torch_geometric.data.Dataset):
                 city_graph_information = pickle.load(pkl)
         else:
             static_file = raw_dir / city / f"{city}_static.h5"
-            city_graph_information = T4CGeometricDataset._process_city_graph_information(city=city, static_file=static_file, processed_dir=processed_dir)
+            city_graph_information = T4CGeometricDataset._process_city_graph_information(
+                city=city, static_file=static_file, processed_dir=processed_dir
+            )
         return city_graph_information
 
     @staticmethod
@@ -170,7 +172,9 @@ class T4CGeometricDataset(torch_geometric.data.Dataset):
         # Every node in the graph has its pixel coordinates as ID (tuple).
         # This assigns every node id tuple and integer (by using enumerate) and stores them in a dict of the form {Node_id_tuple: i}.
         node_to_int_mapping: Dict[Node, int] = {v: k for k, v in enumerate(G.nodes())}
-        edge_index: Tensor = torch.tensor([[node_to_int_mapping[n] for n, _ in G.edges], [node_to_int_mapping[n] for _, n in G.edges]], dtype=torch.long)
+        edge_index: Tensor = torch.tensor(
+            [[node_to_int_mapping[n] for n, _ in G.edges], [node_to_int_mapping[n] for _, n in G.edges]], dtype=torch.long
+        )
         # switch axis and concatenate to account for both directions:
         edge_index_ = torch.cat((edge_index[1:, :], edge_index[0:1, :]), axis=0)
         edge_index = torch.cat((edge_index, edge_index_), axis=1)
@@ -197,7 +201,9 @@ class T4CGeometricDataset(torch_geometric.data.Dataset):
         city = os.path.basename(filename).split("_")[1]
 
         # static data
-        self.networkx_city_graphs[city] = T4CGeometricDataset.process_city_graph_information(city=city, processed_dir=self.processed_dir, raw_dir=self.raw_dir)
+        self.networkx_city_graphs[city] = T4CGeometricDataset.process_city_graph_information(
+            city=city, processed_dir=self.processed_dir, raw_dir=self.raw_dir
+        )
 
         edge_index = self.networkx_city_graphs[city]["edge_index"]
 
@@ -230,9 +236,9 @@ class T4CGeometricDataset(torch_geometric.data.Dataset):
         x = torch.from_numpy(x) / 255
         y = torch.from_numpy(y)
         # collapse timestamps into channels
-        x = torch.moveaxis(x, 1, 0)
+        x = torch.movedim(x, 1, 0)
         x = x.reshape(num_nodes, input_len * num_channels)
-        y = torch.moveaxis(y, 1, 0)
+        y = torch.movedim(y, 1, 0)
         y = y.reshape(num_nodes, output_len * num_channels)
         data = torch_geometric.data.Data(x=x.float(), edge_index=edge_index, y=y.float())
         return data
@@ -275,7 +281,7 @@ class GraphTransformer:
             x = np.expand_dims(x, 0)
 
         x = x.reshape(x.shape[0], x.shape[1], x.shape[2], 6, 8)
-        x = torch.moveaxis(torch.tensor(x), 3, 1)
+        x = torch.movedim(torch.tensor(x), 3, 1)
         if squeeze:
             x = torch.squeeze(x)
         # (2, 495, 436, 6, 8) ->  [2, 6, 495, 436, 8]

@@ -11,7 +11,7 @@
 #  limitations under the License.
 import shutil
 
-import GPUtil
+# import GPUtil
 import psutil
 from tabulate import tabulate
 
