@@ -354,7 +354,6 @@ def main(args):
             dataloader_config=dataloader_config,
             optimizer_config=optimizer_config,
             geometric=geometric,
-            checkpoint_name=args.checkpoint_name,
             **(vars(args)),
         )
 
