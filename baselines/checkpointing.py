@@ -9,7 +9,12 @@ def load_torch_model_from_checkpoint(checkpoint: str, model: torch.nn.Module):
         map_location = "cpu"
 
     state_dict = torch.load(checkpoint, map_location=map_location)
-    model.load_state_dict(state_dict["model"])
+    if "model" in state_dict.keys():
+        model.load_state_dict(state_dict["model"])
+    elif "train_model" in state_dict.keys():
+        model.load_state_dict(state_dict["train_model"])
+    else:
+        model.load_state_dict(state_dict)
 
 
 def save_torch_model_to_checkpoint(model: torch.nn.Module, model_str: str, epoch: int):

@@ -6,6 +6,7 @@ data/weekday2*
 *code-workspace
 data/temp*
 checkpoints/
+lsf.o*
 
 # Byte-compiled / optimized / DLL files
 __pycache__/
