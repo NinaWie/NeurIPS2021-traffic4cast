@@ -109,8 +109,8 @@ def package_submission(
 
                         if post_transform is not None:
                             batch_prediction = post_transform(batch_prediction, city=city, **additional_transform_args)
-                        else:
-                            batch_prediction = batch_prediction.cpu().detach().numpy()
+                        # else:
+                        batch_prediction = batch_prediction.cpu().detach().numpy()
                         batch_prediction = np.clip(batch_prediction, 0, 255)
                         # clipping is important as assigning float array to uint8 array has not the intended effect.... (see `test_submission.test_assign_reload_floats)
                         prediction[batch_start:batch_end] = batch_prediction

@@ -67,6 +67,7 @@ def run_model(
     limit: Optional[int] = None,
     data_parallel=False,
     device_ids=None,
+    checkpoint_name="",
     **kwargs,
 ):  # noqa
 
@@ -136,7 +137,7 @@ def run_model(
     if geometric:
         train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_model)
     else:
-        train_ignite(device, epochs, loss, optimizer, train_loader, val_loader, train_model)
+        train_ignite(device, epochs, loss, optimizer, train_loader, val_loader, train_model, checkpoint_name=checkpoint_name)
     logging.info("End training of on %s for %s epochs", device, epochs)
     return train_model, device
 
@@ -195,7 +196,7 @@ def _val_pure_torch(loader, device, model):
     return running_loss / len(loader) if len(loader) > 0 else running_loss
 
 
-def train_ignite(device, epochs, loss, optimizer, train_loader, val_loader, train_model):
+def train_ignite(device, epochs, loss, optimizer, train_loader, val_loader, train_model, checkpoint_name=""):
     # Validator
     validation_evaluator = create_supervised_evaluator(train_model, metrics={"val_loss": Loss(loss)}, device=device)
     # Trainer
@@ -204,7 +205,7 @@ def train_ignite(device, epochs, loss, optimizer, train_loader, val_loader, trai
     run_id = binascii.hexlify(os.urandom(15)).decode("utf-8")
     artifacts_path = os.path.join(os.path.curdir, f"artifacts/{run_id}")
     logs_path = os.path.join(artifacts_path, "tensorboard")
-    checkpoints_dir = os.path.join(os.path.curdir, "checkpoints")
+    checkpoints_dir = os.path.join(os.path.curdir, "checkpoints" + checkpoint_name)
     RunningAverage(output_transform=lambda x: x).attach(trainer, name="loss")
     pbar = ProgressBar(persist=True, bar_format="{desc}[{n_fmt}/{total_fmt}] {percentage:3.0f}%|{bar}{postfix} [{elapsed}<{remaining}]{rate_fmt}")
     pbar.attach(trainer, metric_names="all")
@@ -280,6 +281,7 @@ def create_parser():
     )
     parser.add_argument("--data_parallel", default=False, required=False, help="Use DataParallel.", action="store_true")
     parser.add_argument("--num_tests_per_file", default=100, type=int, required=False, help="Number of test slots per file")
+    parser.add_argument("--checkpoint_name", default="", type=str, required=False, help="How to name the checkpoint")
     parser.add_argument(
         "--ground_truth_dir",
         type=str,
@@ -352,6 +354,7 @@ def main(args):
             dataloader_config=dataloader_config,
             optimizer_config=optimizer_config,
             geometric=geometric,
+            checkpoint_name=args.checkpoint_name,
             **(vars(args)),
         )
 
