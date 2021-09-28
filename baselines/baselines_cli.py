@@ -14,6 +14,7 @@ import binascii
 import logging
 import os
 import sys
+import time
 from pathlib import Path
 from typing import Optional
 
@@ -53,7 +54,8 @@ from util.tar_util import untar_files
 
 def run_model(
     train_model: torch.nn.Module,
-    dataset: T4CDataset,
+    train_dataset: T4CDataset,
+    val_dataset: T4CDataset,
     random_seed: int,
     train_fraction: float,
     val_fraction: float,
@@ -71,45 +73,48 @@ def run_model(
     **kwargs,
 ):  # noqa
 
-    logging.info("dataset has size %s", len(dataset))
+    logging.info("dataset has size %s", len(train_dataset))
 
     # Train / Dev / Test set splits
-    logging.info("train/dev split")
-    full_dataset_size = len(dataset)
+    # logging.info("train/dev split")
+    # full_dataset_size = len(train_dataset)
 
-    effective_dataset_size = full_dataset_size
-    if limit is not None:
-        effective_dataset_size = min(full_dataset_size, limit)
-    indices = list(range(full_dataset_size))
-    np.random.seed(random_seed)
-    np.random.shuffle(indices)
-    assert np.isclose(train_fraction + val_fraction, 1.0)
-    num_train_items = max(int(np.floor(train_fraction * effective_dataset_size)), batch_size)
-    num_val_items = max(int(np.floor(val_fraction * effective_dataset_size)), batch_size)
-    logging.info(
-        "Taking %s from dataset of length %s, splitting into %s train items and %s val items",
-        effective_dataset_size,
-        full_dataset_size,
-        num_train_items,
-        num_val_items,
-    )
+    # effective_dataset_size = full_dataset_size
+    # if limit is not None:
+    #     effective_dataset_size = min(full_dataset_size, limit)
+    # indices = list(range(full_dataset_size))
+    # np.random.seed(random_seed)
+    # np.random.shuffle(indices)
+    # assert np.isclose(train_fraction + val_fraction, 1.0)
+    # num_train_items = max(int(np.floor(train_fraction * effective_dataset_size)), batch_size)
+    # num_val_items = max(int(np.floor(val_fraction * effective_dataset_size)), batch_size)
+    # logging.info(
+    #     "Taking %s from dataset of length %s, splitting into %s train items and %s val items",
+    #     effective_dataset_size,
+    #     full_dataset_size,
+    #     num_train_items,
+    #     num_val_items,
+    # )
 
     # Data loaders
-    if geometric:
-        train_set, val_set, _ = torch.utils.data.random_split(
-            dataset, [num_train_items, num_val_items, full_dataset_size - num_train_items - num_val_items]
-        )
+    # if geometric:
+    #     train_set, val_set, _ = torch.utils.data.random_split(
+    #         dataset, [num_train_items, num_val_items, full_dataset_size - num_train_items - num_val_items]
+    #     )
 
-        train_loader = torch_geometric.data.DataLoader(train_set, batch_size=batch_size, num_workers=num_workers, **dataloader_config)
-        val_loader = torch_geometric.data.DataLoader(val_set, batch_size=batch_size, num_workers=num_workers, **dataloader_config)
-    else:
-        train_indices, dev_indices = indices[:num_train_items], indices[num_train_items : num_train_items + num_val_items]
+    #     train_loader = torch_geometric.data.DataLoader(train_set, batch_size=batch_size, num_workers=num_workers, **dataloader_config)
+    #     val_loader = torch_geometric.data.DataLoader(val_set, batch_size=batch_size, num_workers=num_workers, **dataloader_config)
+    # else:
+    #     train_indices, dev_indices = indices[:num_train_items], indices[num_train_items : num_train_items + num_val_items]
 
-        train_sampler = SubsetRandomSampler(train_indices)
-        dev_sampler = SubsetRandomSampler(dev_indices)
+    #     train_sampler = SubsetRandomSampler(train_indices)
+    #     dev_sampler = SubsetRandomSampler(dev_indices)
 
-        train_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=train_sampler, **dataloader_config)
-        val_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=dev_sampler, **dataloader_config)
+    #     train_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=train_sampler, **dataloader_config)
+    #     val_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=dev_sampler, **dataloader_config)
+
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, num_workers=num_workers, **dataloader_config)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, num_workers=num_workers, **dataloader_config)
 
     # Optimizer
     if "lr" not in optimizer_config:
@@ -134,7 +139,7 @@ def run_model(
 
     # Loss
     loss = F.mse_loss
-    if geometric:
+    if True:  # geometric:
         train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_model)
     else:
         train_ignite(device, epochs, loss, optimizer, train_loader, val_loader, train_model, checkpoint_name=checkpoint_name)
@@ -145,17 +150,18 @@ def run_model(
 def train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_model):
     best_acc = 10000
     for epoch in range(epochs):
-        _train_epoch_pure_torch(train_loader, device, train_model, optimizer)
+        train_loss = _train_epoch_pure_torch(train_loader, device, train_model, optimizer)
         acc = _val_pure_torch(val_loader, device, train_model)
         if acc > best_acc:
             best_acc = acc
-        log = "Epoch: {:03d}, Test: {:.4f}"
-        logging.info(log.format(epoch, acc))
+        log = "Epoch: {:03d}, Train: {:.4f}, Test: {:.4f}"
+        logging.info(log.format(epoch, train_loss, acc))
         save_torch_model_to_checkpoint(model=train_model, model_str="gcn", epoch=epoch)
 
 
 def _train_epoch_pure_torch(loader, device, model, optimizer):
     loss_to_print = 0
+    criterion = torch.nn.MSELoss()
     for i, input_data in enumerate(tqdm.tqdm(loader, desc="train")):
         if isinstance(input_data, torch_geometric.data.Data):
             input_data = input_data.to(device)
@@ -167,16 +173,16 @@ def _train_epoch_pure_torch(loader, device, model, optimizer):
 
         model.train()
         optimizer.zero_grad()
-        criterion = torch.nn.MSELoss()
         output = model(input_data)
         loss = criterion(output, ground_truth)
         loss.backward()
         optimizer.step()
 
-        loss_to_print += float(loss)
-        if i % 1000 == 0 and i > 0:
-            logging.info("train_loss %s", loss_to_print / 1000)
-            loss_to_print = 0
+        loss_to_print += loss.item()
+        # if i % 1000 == 0 and i > 0:
+        #     logging.info("train_loss %s", loss_to_print / 1000)
+        #     loss_to_print = 0
+    return loss_to_print
 
 
 @torch.no_grad()
@@ -191,8 +197,8 @@ def _val_pure_torch(loader, device, model):
         model.eval()
         criterion = torch.nn.MSELoss()
         output = model(input_data)
-        loss = criterion(output, ground_truth)
-        running_loss = running_loss + float(loss)
+        loss = criterion(output * 255, ground_truth * 255)
+        running_loss += loss.item()
     return running_loss / len(loader) if len(loader) > 0 else running_loss
 
 
@@ -327,12 +333,14 @@ def main(args):
             untar_files(files=tar_files, destination=data_raw_path)
             logging.info("Done untar %s tar balls to %s.", len(tar_files), data_raw_path)
 
-    if geometric:
-        dataset = T4CGeometricDataset(root=str(Path(data_raw_path).parent), file_filter=file_filter, num_workers=args.num_workers, **dataset_config)
-    else:
-        dataset = T4CDataset(root_dir=data_raw_path, file_filter=file_filter, **dataset_config)
-    logging.info("Dataset has size %s", len(dataset))
-    assert len(dataset) > 0
+    train_dataset = T4CDataset(root_dir=data_raw_path, file_filter="**/training/*2019*8ch.h5", **dataset_config, limit=args.limit)
+    val_dataset = T4CDataset(root_dir=data_raw_path, file_filter="**/training/*2020*8ch.h5", **dataset_config, limit=10)
+    # if geometric:
+    #     dataset = T4CGeometricDataset(root=str(Path(data_raw_path).parent), file_filter=file_filter, num_workers=args.num_workers, **dataset_config)
+    # else:
+    #     dataset = T4CDataset(root_dir=data_raw_path, file_filter=file_filter, **dataset_config)
+    logging.info("Dataset has size %s", len(train_dataset))
+    assert len(train_dataset) > 0
 
     # Model
     logging.info("Create train_model.")
@@ -350,7 +358,8 @@ def main(args):
         logging.info(system_status())
         _, device = run_model(
             train_model=model,
-            dataset=dataset,
+            train_dataset=train_dataset,
+            val_dataset=val_dataset,
             dataloader_config=dataloader_config,
             optimizer_config=optimizer_config,
             geometric=geometric,
