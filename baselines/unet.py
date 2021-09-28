@@ -75,7 +75,7 @@ class UNet(nn.Module):
         for i, up in enumerate(self.up_path):
             x = up(x, blocks[-i - 1])
 
-        return self.last(x)
+        return torch.sigmoid(self.last(x))  # TODO
 
 
 class UNetConvBlock(nn.Module):
@@ -140,6 +140,7 @@ class UNetTransfomer:
         stack_channels_on_time: bool = False,
         batch_dim: bool = False,
         from_numpy: bool = False,
+        normalize: bool = True,
         **kwargs
     ) -> torch.Tensor:
         """Transform data from `T4CDataset` be used by UNet:
@@ -160,11 +161,19 @@ class UNetTransfomer:
             data = zeropad2d(data)
         if not batch_dim:
             data = torch.squeeze(data, 0)
+        if normalize:
+            data = data / 255.0
+
         return data
 
     @staticmethod
     def unet_post_transform(
-        data: torch.Tensor, crop: Optional[Tuple[int, int, int, int]] = None, stack_channels_on_time: bool = False, batch_dim: bool = False, **kwargs
+        data: torch.Tensor,
+        crop: Optional[Tuple[int, int, int, int]] = None,
+        stack_channels_on_time: bool = False,
+        batch_dim: bool = False,
+        normalize: bool = True,
+        **kwargs
     ) -> torch.Tensor:
         """Bring data from UNet back to `T4CDataset` format:
 
@@ -184,6 +193,9 @@ class UNetTransfomer:
             data = UNetTransfomer.transform_unstack_channels_on_time(data, batch_dim=True)
         if not batch_dim:
             data = torch.squeeze(data, 0)
+
+        if normalize:
+            data = data * 255.0
         return data
 
     @staticmethod

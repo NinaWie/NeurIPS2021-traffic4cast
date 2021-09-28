@@ -30,7 +30,9 @@ configs = {
         # zeropad2d the input data with 0 to ensure same size after upscaling by the network inputs [495, 436] -> [496, 448]
         "model_config": {"in_channels": 12 * 8, "n_classes": 6 * 8, "depth": 5, "wf": 6, "padding": True, "up_mode": "upconv", "batch_norm": True},
         "dataset_config": {
-            "transform": partial(UNetTransfomer.unet_pre_transform, stack_channels_on_time=True, zeropad2d=(6, 6, 1, 0), batch_dim=False)
+            "transform": partial(
+                UNetTransfomer.unet_pre_transform, stack_channels_on_time=True, zeropad2d=(6, 6, 1, 0), batch_dim=False
+            )  # TODO: batch dim needs to be True for my new dataset
         },
         "pre_transform": partial(
             UNetTransfomer.unet_pre_transform, stack_channels_on_time=True, zeropad2d=(6, 6, 1, 0), batch_dim=True, from_numpy=True
@@ -42,7 +44,9 @@ configs = {
         # zeropad2d the input data with 0 to ensure same size after upscaling by the network inputs [495, 436] -> [496, 448]
         "model_config": {"in_channels": 12 * 8, "n_classes": 6 * 8, "depth": 5, "wf": 6, "padding": True, "up_mode": "upconv", "batch_norm": True},
         "dataset_config": {
-            "transform": partial(UNetTransfomer.unet_pre_transform, stack_channels_on_time=True, zeropad2d=(6, 6, 1, 0), batch_dim=False)
+            "transform": partial(
+                UNetTransfomer.unet_pre_transform, stack_channels_on_time=True, zeropad2d=(6, 6, 1, 0), batch_dim=False
+            )  # TODO: batch dim needs to be True for my new dataset
         },
         "pre_transform": partial(
             UNetTransfomer.unet_pre_transform, stack_channels_on_time=True, zeropad2d=(6, 6, 1, 0), batch_dim=True, from_numpy=True
