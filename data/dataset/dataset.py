@@ -15,6 +15,7 @@ from typing import Callable
 from typing import Optional
 from typing import Tuple
 
+import time
 import numpy as np
 import torch
 from torch.utils.data import Dataset
@@ -97,3 +98,68 @@ class T4CDataset(Dataset):
         data = torch.from_numpy(data)
         data = data.to(dtype=torch.float)
         return data
+
+
+class CachedT4CDataset(T4CDataset):
+    def __init__(
+        self,
+        root_dir: str,
+        file_filter: str = None,
+        limit: Optional[int] = None,
+        transform: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
+        use_npy: bool = False,
+        load_files=10,
+        use_per_file=5,
+    ):
+        super().__init__(root_dir, file_filter=file_filter, limit=limit, transform=transform, use_npy=use_npy)
+
+        self.load_files = load_files
+        self.use_per_file = use_per_file
+        # cheat: just count accesses
+        self.epoch_size_internal = 10
+        self.internal_counter = 0
+        self.resample_freq = self.load_files * self.use_per_file * 2  # do 2 epochs per cached data
+
+        self.data_x, self.data_y = self._cache_data()
+
+    def _cache_data(self):
+        print("MAKE NEW DATASET")
+        use_files = np.random.choice(self.files, size=self.load_files, replace=False)
+        data_x = np.zeros((self.load_files * self.use_per_file, 12, 495, 436, 8))
+        data_y = np.zeros((self.load_files * self.use_per_file, 6, 495, 436, 8))
+        # print("allocated:", data_x.shape, data_y.shape)
+        counter = 0
+        for file in use_files:
+            loaded_file = load_h5_file(file)
+            random_times = (np.random.rand(self.use_per_file) * 240).astype(int)
+            # print("loaded file ", file, loaded_file.shape, random_times)
+            for i in range(self.use_per_file):
+                start_hour = random_times[i]
+                two_hours = loaded_file[start_hour : start_hour + 12 * 2 + 1]
+                # print("two hours", two_hours.shape)
+                # self._load_h5_file(self.files[file_idx], sl=slice(start_hour, start_hour + 12 * 2 + 1))
+                input_data, output_data = prepare_test(two_hours)
+
+                # print("inp and outp", input_data.shape, output_data.shape)
+
+                data_x[counter] = input_data
+                data_y[counter] = output_data
+                counter += 1
+
+        data_x = self._to_torch(data_x)
+        data_y = self._to_torch(data_y)
+        print("inp and outp after torch", data_x.size(), data_y.size())
+
+        if self.transform is not None:
+            data_x = self.transform(data_x)
+            data_y = self.transform(data_y)
+        return data_x, data_y
+
+    def __len__(self):
+        return self.load_files * self.use_per_file * self.epoch_size_internal
+
+    def __getitem__(self, idx: int) -> Tuple[Any, Any]:
+        self.internal_counter += 1
+        if self.internal_counter % self.resample_freq == 0:
+            self.data = self._cache_data()
+        return self.data_x[idx // self.epoch_size_internal], self.data_y[idx // self.epoch_size_internal]
