@@ -162,7 +162,8 @@ def train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_
 def _train_epoch_pure_torch(loader, device, model, optimizer):
     loss_to_print = 0
     criterion = torch.nn.MSELoss()
-    for i, (input_data, ground_truth) in enumerate(tqdm.tqdm(loader, desc="train")):
+    nr_train_data = len(loader)
+    for i, (input_data, ground_truth) in enumerate(loader):  # tqdm.tqdm(loader, desc="train")):
         # if isinstance(input_data, torch_geometric.data.Data):
         #     input_data = input_data.to(device)
         #     ground_truth = input_data.y
@@ -179,6 +180,8 @@ def _train_epoch_pure_torch(loader, device, model, optimizer):
         optimizer.step()
 
         loss_to_print += loss.item()
+        if i % 5 == 0:
+            print(f"train {i}/{nr_train_data} ({round(loss.item(), 2)})")
         # if i % 1000 == 0 and i > 0:
         #     logging.info("train_loss %s", loss_to_print / 1000)
         #     loss_to_print = 0
@@ -188,18 +191,23 @@ def _train_epoch_pure_torch(loader, device, model, optimizer):
 @torch.no_grad()
 def _val_pure_torch(loader, device, model):
     running_loss = 0
-    for input_data in tqdm.tqdm(loader, desc="val"):
-        if isinstance(input_data, torch_geometric.data.Data):
-            input_data = input_data.to(device)
-            ground_truth = input_data.y
-        else:
-            input_data, ground_truth = input_data
+    nr_val_data = len(loader)
+    for i, (input_data, ground_truth) in enumerate(loader):  # tqdm.tqdm(loader, desc="val"):
+        # print(f"eval {i}/{nr_val_data}")
+        # if isinstance(input_data, torch_geometric.data.Data):
+        #     input_data = input_data.to(device)
+        #     ground_truth = input_data.y
+        # else:
+        #     input_data, ground_truth = input_data
+        input_data = input_data.to(device)
+        ground_truth = ground_truth.to(device)
+
         model.eval()
         criterion = torch.nn.MSELoss()
         output = model(input_data)
         loss = criterion(output * 255, ground_truth * 255)
         running_loss += loss.item()
-    return running_loss / len(loader) if len(loader) > 0 else running_loss
+    return running_loss / nr_val_data  # len(loader) if len(loader) > 0 else running_loss
 
 
 def train_ignite(device, epochs, loss, optimizer, train_loader, val_loader, train_model, checkpoint_name=""):
