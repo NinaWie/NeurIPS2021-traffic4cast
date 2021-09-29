@@ -162,14 +162,14 @@ def train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_
 def _train_epoch_pure_torch(loader, device, model, optimizer):
     loss_to_print = 0
     criterion = torch.nn.MSELoss()
-    for i, input_data in enumerate(tqdm.tqdm(loader, desc="train")):
-        if isinstance(input_data, torch_geometric.data.Data):
-            input_data = input_data.to(device)
-            ground_truth = input_data.y
-        else:
-            input_data, ground_truth = input_data
-            input_data = input_data.to(device)
-            ground_truth = ground_truth.to(ground_truth)
+    for i, (input_data, ground_truth) in enumerate(tqdm.tqdm(loader, desc="train")):
+        # if isinstance(input_data, torch_geometric.data.Data):
+        #     input_data = input_data.to(device)
+        #     ground_truth = input_data.y
+        # else:
+        #     input_data, ground_truth = input_data
+        input_data = input_data.to(device)
+        ground_truth = ground_truth.to(device)
 
         model.train()
         optimizer.zero_grad()
