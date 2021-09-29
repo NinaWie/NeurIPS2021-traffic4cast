@@ -78,8 +78,8 @@ class T4CDataset(Dataset):
         if idx > self.__len__():
             raise IndexError("Index out of bounds")
 
-        file_idx = idx // MAX_TEST_SLOT_INDEX
-        start_hour = idx % MAX_TEST_SLOT_INDEX
+        file_idx = int(np.random.rand() * len(self.files)) # idx // MAX_TEST_SLOT_INDEX
+        start_hour = int(np.random.rand() * MAX_TEST_SLOT_INDEX) # idx % MAX_TEST_SLOT_INDEX
 
         two_hours = self._load_h5_file(self.files[file_idx], sl=slice(start_hour, start_hour + 12 * 2 + 1))
 
