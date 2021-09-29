@@ -140,14 +140,14 @@ def run_model(
     # Loss
     loss = F.mse_loss
     if True:  # geometric:
-        train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_model)
+        train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_model, checkpoint_name=checkpoint_name)
     else:
         train_ignite(device, epochs, loss, optimizer, train_loader, val_loader, train_model, checkpoint_name=checkpoint_name)
     logging.info("End training of on %s for %s epochs", device, epochs)
     return train_model, device
 
 
-def train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_model):
+def train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_model, checkpoint_name=""):
     best_acc = 10000
     for epoch in range(epochs):
         train_loss = _train_epoch_pure_torch(train_loader, device, train_model, optimizer)
@@ -156,7 +156,7 @@ def train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_
             best_acc = acc
         log = "Epoch: {:03d}, Train: {:.4f}, Test: {:.4f}"
         logging.info(log.format(epoch, train_loss, acc))
-        save_torch_model_to_checkpoint(model=train_model, model_str="gcn", epoch=epoch)
+        save_torch_model_to_checkpoint(model=train_model, epoch=epoch, out_dir="ckpt" + checkpoint_name)
 
 
 def _train_epoch_pure_torch(loader, device, model, optimizer):
