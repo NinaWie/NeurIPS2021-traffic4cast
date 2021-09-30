@@ -148,15 +148,19 @@ def run_model(
 
 
 def train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_model, checkpoint_name=""):
-    best_acc = 10000
+    best_val_loss = np.inf
     for epoch in range(epochs):
         train_loss = _train_epoch_pure_torch(train_loader, device, train_model, optimizer)
-        acc = _val_pure_torch(val_loader, device, train_model)
-        if acc > best_acc:
-            best_acc = acc
+        val_loss = _val_pure_torch(val_loader, device, train_model)
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            # Save if best result
+            save_torch_model_to_checkpoint(model=train_model, epoch=epoch, out_dir="ckpt" + checkpoint_name)
         log = "Epoch: {:03d}, Train: {:.4f}, Test: {:.4f}"
-        logging.info(log.format(epoch, train_loss, acc))
-        save_torch_model_to_checkpoint(model=train_model, epoch=epoch, out_dir="ckpt" + checkpoint_name)
+        logging.info(log.format(epoch, train_loss, best_val_loss))
+        if (epoch + 1) % 50 == 0:
+            # Save regularly as backup
+            save_torch_model_to_checkpoint(model=train_model, epoch=epoch, out_dir="ckpt" + checkpoint_name, out_name=f"epoch_{epoch:04}")
 
 
 def _train_epoch_pure_torch(loader, device, model, optimizer):
@@ -181,7 +185,7 @@ def _train_epoch_pure_torch(loader, device, model, optimizer):
 
         loss_to_print += loss.item()
         if i % 5 == 0:
-            print(f"train {i}/{nr_train_data} ({round(loss.item(), 2)})")
+            print(f"train {i+1}/{nr_train_data} ({loss.item()})")
         # if i % 1000 == 0 and i > 0:
         #     logging.info("train_loss %s", loss_to_print / 1000)
         #     loss_to_print = 0
@@ -193,7 +197,6 @@ def _val_pure_torch(loader, device, model):
     running_loss = 0
     nr_val_data = len(loader)
     for i, (input_data, ground_truth) in enumerate(loader):  # tqdm.tqdm(loader, desc="val"):
-        # print(f"eval {i}/{nr_val_data}")
         # if isinstance(input_data, torch_geometric.data.Data):
         #     input_data = input_data.to(device)
         #     ground_truth = input_data.y
@@ -205,7 +208,9 @@ def _val_pure_torch(loader, device, model):
         model.eval()
         criterion = torch.nn.MSELoss()
         output = model(input_data)
+        # print("min and max", np.min(output.detach().numpy()), np.max(output.detach().numpy()))
         loss = criterion(output * 255, ground_truth * 255)
+        # print(f"eval {i+1}/{nr_val_data} Loss {loss.item()}")
         running_loss += loss.item()
     return running_loss / nr_val_data  # len(loader) if len(loader) > 0 else running_loss
 
@@ -289,6 +294,7 @@ def create_parser():
     parser.add_argument("--epochs", type=int, default=20, required=False, help="Number of epochs to train.")
     parser.add_argument("--file_filter", type=str, default=None, required=False, help='Filter files in the dataset. Defaults to "**/*8ch.h5"')
     parser.add_argument("--limit", type=int, default=None, required=False, help="Cap dataset size at this limit.")
+    parser.add_argument("--val_limit", type=int, default=None, required=False, help="Cap dataset size at this limit.")
     parser.add_argument("--device", type=str, default=None, required=False, help="Force usage of device.")
     parser.add_argument(
         "--device_ids", nargs="*", default=None, required=False, help="Whitelist of device ids. If not given, all device ids are taken."
@@ -342,7 +348,7 @@ def main(args):
             logging.info("Done untar %s tar balls to %s.", len(tar_files), data_raw_path)
 
     train_dataset = T4CDataset(root_dir=data_raw_path, file_filter="**/training/*2019*8ch.h5", **dataset_config, limit=args.limit)
-    val_dataset = T4CDataset(root_dir=data_raw_path, file_filter="**/training/*2020*8ch.h5", **dataset_config, limit=10)
+    val_dataset = T4CDataset(root_dir=data_raw_path, file_filter="**/training/*2020*8ch.h5", **dataset_config, limit=args.val_limit)
     # if geometric:
     #     dataset = T4CGeometricDataset(root=str(Path(data_raw_path).parent), file_filter=file_filter, num_workers=args.num_workers, **dataset_config)
     # else:

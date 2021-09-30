@@ -18,11 +18,13 @@ def load_torch_model_from_checkpoint(checkpoint: str, model: torch.nn.Module):
         model.load_state_dict(state_dict)
 
 
-def save_torch_model_to_checkpoint(model: torch.nn.Module, out_dir: str, epoch: int):
+def save_torch_model_to_checkpoint(
+    model: torch.nn.Module, out_dir: str, epoch: int, out_name: str = "best",
+):
     tstamp = datetime.datetime.strftime(datetime.datetime.now(), "%Y%m%d%H%M")
     if not os.path.exists(out_dir):
         os.makedirs(out_dir)
-    outpath = os.path.join(out_dir, f"{epoch:04}_{tstamp}.pt")
+    outpath = os.path.join(out_dir, out_name + ".pt")  # f"{epoch:04}_{tstamp}.pt")
 
     save_dict = {"epoch": epoch, "model": model.state_dict()}
 
