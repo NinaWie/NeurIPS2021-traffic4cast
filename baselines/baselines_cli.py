@@ -381,7 +381,7 @@ def main(args):
         )
 
     if args.submit:
-        competitions = ["temporal"]  # , "spatiotemporal"]
+        competitions = ["temporal", "spatiotemporal"]
 
         for competition in competitions:
             additional_args = {}
