@@ -29,7 +29,9 @@ class T4CDataset(Dataset):
     def __init__(
         self,
         root_dir: str,
+        auto_filter: str = "train",
         file_filter: str = None,
+        test_city="ANTWERP",
         limit: Optional[int] = None,
         transform: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
         use_npy: bool = False,
@@ -50,14 +52,20 @@ class T4CDataset(Dataset):
         self.root_dir = root_dir
         self.limit = limit
         self.files = []
-        self.file_filter = file_filter
         self.use_npy = use_npy
-        if self.file_filter is None:
-            self.file_filter = "**/training/*8ch.h5"
-            if self.use_npy:
-                self.file_filter = "**/training_npy/*.npy"
         self.transform = transform
+        if file_filter is not None:
+            self.file_filter = file_filter
+        else:
+            print("USING AUTO FILTER")
+            if auto_filter == "train":
+                self.file_filter = "**/training/*8ch.h5"
+            elif auto_filter == "test":
+                self.file_filter = f"**/training/*2020*{test_city}*8ch.h5"
+            print(self.file_filter)
         self._load_dataset()
+        if auto_filter == "train" and (file_filter is None):
+            self.files = [f for f in self.files if not (test_city in str(f) and "2020" in str(f))]
 
     def _load_dataset(self):
         self.files = list(Path(self.root_dir).rglob(self.file_filter))
@@ -78,8 +86,11 @@ class T4CDataset(Dataset):
         if idx > self.__len__():
             raise IndexError("Index out of bounds")
 
-        file_idx = int(np.random.rand() * len(self.files)) # idx // MAX_TEST_SLOT_INDEX
-        start_hour = int(np.random.rand() * MAX_TEST_SLOT_INDEX) # idx % MAX_TEST_SLOT_INDEX
+        file_idx = int(np.random.rand() * len(self.files))
+        start_hour = int(np.random.rand() * MAX_TEST_SLOT_INDEX)
+        # For testing with __main__ below
+        # print(self.files[file_idx], start_hour)
+        # return None
 
         two_hours = self._load_h5_file(self.files[file_idx], sl=slice(start_hour, start_hour + 12 * 2 + 1))
 
@@ -163,3 +174,9 @@ class CachedT4CDataset(T4CDataset):
         if self.internal_counter % self.resample_freq == 0:
             self.data = self._cache_data()
         return self.data_x[idx // self.epoch_size_internal], self.data_y[idx // self.epoch_size_internal]
+
+
+if __name__ == "__main__":
+    dataset = T4CDataset("data/raw", auto_filter="train")
+    for i in range(20):
+        _ = dataset[i]

@@ -157,7 +157,7 @@ def train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_
             # Save if best result
             save_torch_model_to_checkpoint(model=train_model, epoch=epoch, out_dir="ckpt" + checkpoint_name)
         log = "Epoch: {:03d}, Train: {:.4f}, Test: {:.4f}"
-        logging.info(log.format(epoch, train_loss, best_val_loss))
+        logging.info(log.format(epoch, train_loss, val_loss))
         if (epoch + 1) % 50 == 0:
             # Save regularly as backup
             save_torch_model_to_checkpoint(model=train_model, epoch=epoch, out_dir="ckpt" + checkpoint_name, out_name=f"epoch_{epoch:04}")
@@ -347,8 +347,8 @@ def main(args):
             untar_files(files=tar_files, destination=data_raw_path)
             logging.info("Done untar %s tar balls to %s.", len(tar_files), data_raw_path)
 
-    train_dataset = T4CDataset(root_dir=data_raw_path, file_filter="**/training/*2019*8ch.h5", **dataset_config, limit=args.limit)
-    val_dataset = T4CDataset(root_dir=data_raw_path, file_filter="**/training/*2020*8ch.h5", **dataset_config, limit=args.val_limit)
+    train_dataset = T4CDataset(root_dir=data_raw_path, auto_filter="train", **dataset_config, limit=args.limit)
+    val_dataset = T4CDataset(root_dir=data_raw_path, auto_filter="test", **dataset_config, limit=args.val_limit)
     # if geometric:
     #     dataset = T4CGeometricDataset(root=str(Path(data_raw_path).parent), file_filter=file_filter, num_workers=args.num_workers, **dataset_config)
     # else:
