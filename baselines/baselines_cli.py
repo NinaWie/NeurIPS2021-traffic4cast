@@ -113,8 +113,12 @@ def run_model(
     #     train_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=train_sampler, **dataloader_config)
     #     val_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=dev_sampler, **dataloader_config)
 
-    train_loader = DataLoader(train_dataset, batch_size=batch_size, num_workers=num_workers, **dataloader_config)
-    val_loader = DataLoader(val_dataset, batch_size=batch_size, num_workers=num_workers, **dataloader_config)
+    train_loader = DataLoader(
+        train_dataset, batch_size=batch_size, num_workers=num_workers, **dataloader_config  # , worker_init_fn=lambda _: np.random.seed()
+    )
+    val_loader = DataLoader(
+        val_dataset, batch_size=batch_size, num_workers=num_workers, **dataloader_config  # , worker_init_fn=lambda _: np.random.seed()
+    )
 
     # Optimizer
     if "lr" not in optimizer_config:
@@ -290,7 +294,7 @@ def create_parser():
     parser.add_argument("--train_fraction", type=float, default=0.9, required=False, help="Fraction of the data set for training.")
     parser.add_argument("--val_fraction", type=float, default=0.1, required=False, help="Fraction of the data set for validation.")
     parser.add_argument("--batch_size", type=int, default=5, required=False, help="Batch Size for training and validation.")
-    parser.add_argument("--num_workers", type=int, default=10, required=False, help="Number of workers for data loader.")
+    parser.add_argument("--num_workers", type=int, default=0, required=False, help="Number of workers for data loader.")
     parser.add_argument("--epochs", type=int, default=20, required=False, help="Number of epochs to train.")
     parser.add_argument("--file_filter", type=str, default=None, required=False, help='Filter files in the dataset. Defaults to "**/*8ch.h5"')
     parser.add_argument("--limit", type=int, default=None, required=False, help="Cap dataset size at this limit.")
@@ -337,6 +341,8 @@ def main(args):
 
     data_raw_path = args.data_raw_path
     file_filter = args.file_filter
+
+    assert args.num_workers == 0, "Check seed problems for more workers before commenting this"
 
     geometric = configs[model_str].get("geometric", False)
     if data_raw_path is not None:
