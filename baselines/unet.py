@@ -214,7 +214,7 @@ class UNetTransfomer:
         data = torch.movedim(data, 4, 2)
 
         # (k, 12, 8, 495, 436) -> (k, 12 * 8, 495, 436)
-        data = torch.reshape(data, (data.shape[0], num_time_steps * num_channels, 495, 436))
+        data = torch.reshape(data, (data.shape[0], num_time_steps * num_channels, data.size()[3], data.size()[4]))
 
         if not batch_dim:
             # `(1, 12, 495, 436, 8) -> (12, 495, 436, 8)`
@@ -232,7 +232,7 @@ class UNetTransfomer:
 
         num_time_steps = int(data.shape[1] / num_channels)
         # (k, 12 * 8, 495, 436) -> (k, 12, 8, 495, 436)
-        data = torch.reshape(data, (data.shape[0], num_time_steps, num_channels, 495, 436))
+        data = torch.reshape(data, (data.shape[0], num_time_steps, num_channels, data.size()[2], data.size()[3]))
 
         # (k, 12, 8, 495, 436) -> (k, 12, 495, 436, 8)
         data = torch.movedim(data, 2, 4)

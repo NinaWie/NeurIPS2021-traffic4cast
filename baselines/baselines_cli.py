@@ -114,7 +114,11 @@ def run_model(
     #     val_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=dev_sampler, **dataloader_config)
 
     train_loader = DataLoader(
-        train_dataset, batch_size=batch_size, num_workers=num_workers, **dataloader_config  # , worker_init_fn=lambda _: np.random.seed()
+        train_dataset,
+        batch_size=batch_size,
+        shuffle=True,
+        num_workers=num_workers,
+        **dataloader_config,  # , worker_init_fn=lambda _: np.random.seed()
     )
     val_loader = DataLoader(
         val_dataset, batch_size=batch_size, num_workers=num_workers, **dataloader_config  # , worker_init_fn=lambda _: np.random.seed()
@@ -188,7 +192,7 @@ def _train_epoch_pure_torch(loader, device, model, optimizer):
         optimizer.step()
 
         loss_to_print += loss.item()
-        if i % 5 == 0:
+        if (i + 1) % 5 == 0:
             print(f"train {i+1}/{nr_train_data} ({loss.item()})")
         # if i % 1000 == 0 and i > 0:
         #     logging.info("train_loss %s", loss_to_print / 1000)
@@ -338,6 +342,8 @@ def main(args):
     logging.info("Start build dataset")
     # Data set
     dataset_config = configs[model_str].get("dataset_config", {})
+    dataset_class = dataset_config.get("dataset", T4CDataset)
+    dataset_config.pop("dataset", None)  # delete key if it exists
 
     data_raw_path = args.data_raw_path
     file_filter = args.file_filter
@@ -353,8 +359,8 @@ def main(args):
             untar_files(files=tar_files, destination=data_raw_path)
             logging.info("Done untar %s tar balls to %s.", len(tar_files), data_raw_path)
 
-    train_dataset = T4CDataset(root_dir=data_raw_path, auto_filter="train", **dataset_config, limit=args.limit)
-    val_dataset = T4CDataset(root_dir=data_raw_path, auto_filter="test", **dataset_config, limit=args.val_limit)
+    train_dataset = dataset_class(root_dir=data_raw_path, auto_filter="train", **dataset_config, limit=args.limit)
+    val_dataset = dataset_class(root_dir=data_raw_path, auto_filter="test", **dataset_config, limit=args.val_limit)
     # if geometric:
     #     dataset = T4CGeometricDataset(root=str(Path(data_raw_path).parent), file_filter=file_filter, num_workers=args.num_workers, **dataset_config)
     # else:

@@ -111,42 +111,54 @@ class T4CDataset(Dataset):
         return data
 
 
-class CachedT4CDataset(T4CDataset):
+class PatchT4CDataset(T4CDataset):
     def __init__(
         self,
         root_dir: str,
         file_filter: str = None,
-        limit: Optional[int] = None,
+        limit: Optional[int] = 100,
         transform: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
         use_npy: bool = False,
-        load_files=10,
-        use_per_file=5,
+        use_per_file=10,
+        radius=50,
+        auto_filter: str = "train",
     ):
-        super().__init__(root_dir, file_filter=file_filter, limit=limit, transform=transform, use_npy=use_npy)
+        super().__init__(root_dir, file_filter=file_filter, auto_filter=auto_filter, limit=limit, transform=transform, use_npy=use_npy)
 
-        self.load_files = load_files
-        self.use_per_file = use_per_file
-        # cheat: just count accesses
-        self.epoch_size_internal = 10
+        self.n_load_files = limit  # The number of loaded files depends on whether we have train or test
+        self.use_per_file = use_per_file  # use per file is fixed, we have to see how much it falsifies the val acc
+        # We always run 2 epochs if we are at train time
+        if auto_filter == "train":
+            self.resample_every_x_epoch = 2
+        else:
+            self.resample_every_x_epoch = 1
+
         self.internal_counter = 0
-        self.resample_freq = self.load_files * self.use_per_file * 2  # do 2 epochs per cached data
+        self.auto_filter = auto_filter
+        self.radius = radius
 
         self.data_x, self.data_y = self._cache_data()
 
     def _cache_data(self):
-        print("MAKE NEW DATASET")
-        use_files = np.random.choice(self.files, size=self.load_files, replace=False)
-        data_x = np.zeros((self.load_files * self.use_per_file, 12, 495, 436, 8))
-        data_y = np.zeros((self.load_files * self.use_per_file, 6, 495, 436, 8))
+        print("\n ---------- ", self.internal_counter, self.auto_filter, "MAKE NEW DATASET -------------")
+        use_files = np.random.choice(self.files, size=self.n_load_files, replace=False)
+        data_x = np.zeros((self.n_load_files * self.use_per_file, 12, 2 * self.radius, 2 * self.radius, 8))
+        data_y = np.zeros((self.n_load_files * self.use_per_file, 6, 2 * self.radius, 2 * self.radius, 8))
         # print("allocated:", data_x.shape, data_y.shape)
         counter = 0
         for file in use_files:
             loaded_file = load_h5_file(file)
-            random_times = (np.random.rand(self.use_per_file) * 240).astype(int)
+            random_times = (np.random.rand(self.use_per_file) * 264).astype(int)
+            rand_x = (np.random.rand(self.use_per_file) * (495 - 2 * self.radius)).astype(int) + self.radius
+            rand_y = (np.random.rand(self.use_per_file) * (436 - 2 * self.radius)).astype(int) + self.radius
             # print("loaded file ", file, loaded_file.shape, random_times)
             for i in range(self.use_per_file):
                 start_hour = random_times[i]
-                two_hours = loaded_file[start_hour : start_hour + 12 * 2 + 1]
+                end_hour = start_hour + 24
+                s_x, e_x = (rand_x[i] - self.radius, rand_x[i] + self.radius)  # start and end x of patch
+                s_y, e_y = (rand_y[i] - self.radius, rand_y[i] + self.radius)  # start and end y of patch
+                two_hours = loaded_file[start_hour:end_hour, s_x:e_x, s_y:e_y]
+                # print("two hours", start_hour, s_x, s_y, two_hours.shape)
                 # print("two hours", two_hours.shape)
                 # self._load_h5_file(self.files[file_idx], sl=slice(start_hour, start_hour + 12 * 2 + 1))
                 input_data, output_data = prepare_test(two_hours)
@@ -159,24 +171,31 @@ class CachedT4CDataset(T4CDataset):
 
         data_x = self._to_torch(data_x)
         data_y = self._to_torch(data_y)
-        print("inp and outp after torch", data_x.size(), data_y.size())
 
         if self.transform is not None:
             data_x = self.transform(data_x)
             data_y = self.transform(data_y)
+
+        # print("inp and outp after transform", data_x.size(), data_y.size())
         return data_x, data_y
 
     def __len__(self):
-        return self.load_files * self.use_per_file * self.epoch_size_internal
+        return self.n_load_files * self.use_per_file
 
     def __getitem__(self, idx: int) -> Tuple[Any, Any]:
         self.internal_counter += 1
-        if self.internal_counter % self.resample_freq == 0:
-            self.data = self._cache_data()
-        return self.data_x[idx // self.epoch_size_internal], self.data_y[idx // self.epoch_size_internal]
+        # print(self.internal_counter, idx)
+        if self.internal_counter % (len(self) * self.resample_every_x_epoch) == 0:
+            self.data_x, self.data_y = self._cache_data()
+        return self.data_x[idx], self.data_y[idx]
 
 
 if __name__ == "__main__":
-    dataset = T4CDataset("data/raw", auto_filter="train")
-    for i in range(20):
-        _ = dataset[i]
+    dataset = PatchT4CDataset("data/raw", auto_filter="train", limit=3)
+    from torch.utils.data import DataLoader
+
+    train_loader = DataLoader(dataset, batch_size=4, shuffle=True, num_workers=0)
+    for epoch in range(10):
+        print("NEW EPOCH")
+        for d_x, d_y in train_loader:
+            print(d_x.shape, d_y.shape)
