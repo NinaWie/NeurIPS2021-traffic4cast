@@ -359,14 +359,15 @@ def main(args):
             untar_files(files=tar_files, destination=data_raw_path)
             logging.info("Done untar %s tar balls to %s.", len(tar_files), data_raw_path)
 
-    train_dataset = dataset_class(root_dir=data_raw_path, auto_filter="train", **dataset_config, limit=args.limit)
-    val_dataset = dataset_class(root_dir=data_raw_path, auto_filter="test", **dataset_config, limit=args.val_limit)
-    # if geometric:
-    #     dataset = T4CGeometricDataset(root=str(Path(data_raw_path).parent), file_filter=file_filter, num_workers=args.num_workers, **dataset_config)
-    # else:
-    #     dataset = T4CDataset(root_dir=data_raw_path, file_filter=file_filter, **dataset_config)
-    logging.info("Dataset has size %s", len(train_dataset))
-    assert len(train_dataset) > 0
+    if args.epochs > 0:
+        train_dataset = dataset_class(root_dir=data_raw_path, auto_filter="train", **dataset_config, limit=args.limit)
+        val_dataset = dataset_class(root_dir=data_raw_path, auto_filter="test", **dataset_config, limit=args.val_limit)
+        # if geometric:
+        #     dataset = T4CGeometricDataset(root=str(Path(data_raw_path).parent), file_filter=file_filter, num_workers=args.num_workers, **dataset_config)
+        # else:
+        #     dataset = T4CDataset(root_dir=data_raw_path, file_filter=file_filter, **dataset_config)
+        logging.info("Dataset has size %s", len(train_dataset))
+        assert len(train_dataset) > 0
 
     # Model
     logging.info("Create train_model.")
@@ -382,15 +383,16 @@ def main(args):
 
         logging.info("Going to run train_model.")
         logging.info(system_status())
-        _, device = run_model(
-            train_model=model,
-            train_dataset=train_dataset,
-            val_dataset=val_dataset,
-            dataloader_config=dataloader_config,
-            optimizer_config=optimizer_config,
-            geometric=geometric,
-            **(vars(args)),
-        )
+        if args.epochs > 0:
+            _, device = run_model(
+                train_model=model,
+                train_dataset=train_dataset,
+                val_dataset=val_dataset,
+                dataloader_config=dataloader_config,
+                optimizer_config=optimizer_config,
+                geometric=geometric,
+                **(vars(args)),
+            )
 
     if args.submit:
         competitions = ["temporal", "spatiotemporal"]
