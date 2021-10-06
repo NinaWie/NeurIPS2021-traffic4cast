@@ -304,6 +304,8 @@ def create_parser():
     parser.add_argument("--limit", type=int, default=None, required=False, help="Cap dataset size at this limit.")
     parser.add_argument("--val_limit", type=int, default=None, required=False, help="Cap dataset size at this limit.")
     parser.add_argument("--device", type=str, default=None, required=False, help="Force usage of device.")
+    parser.add_argument("--stride", type=int, default=30, required=False, help="Stride for submission")
+    parser.add_argument("--radius", type=int, default=50, required=False, help="Radius for patching")
     parser.add_argument(
         "--device_ids", nargs="*", default=None, required=False, help="Whitelist of device ids. If not given, all device ids are taken."
     )
@@ -359,9 +361,10 @@ def main(args):
             untar_files(files=tar_files, destination=data_raw_path)
             logging.info("Done untar %s tar balls to %s.", len(tar_files), data_raw_path)
 
+    assert args.stride < 2 * args.radius, "stride must cover data"
     if args.epochs > 0:
-        train_dataset = dataset_class(root_dir=data_raw_path, auto_filter="train", **dataset_config, limit=args.limit)
-        val_dataset = dataset_class(root_dir=data_raw_path, auto_filter="test", **dataset_config, limit=args.val_limit)
+        train_dataset = dataset_class(root_dir=data_raw_path, auto_filter="train", **dataset_config, limit=args.limit, radius=args.radius)
+        val_dataset = dataset_class(root_dir=data_raw_path, auto_filter="test", **dataset_config, limit=args.val_limit, radius=args.radius)
         # if geometric:
         #     dataset = T4CGeometricDataset(root=str(Path(data_raw_path).parent), file_filter=file_filter, num_workers=args.num_workers, **dataset_config)
         # else:
@@ -373,7 +376,8 @@ def main(args):
     logging.info("Create train_model.")
     model_class = configs[model_str]["model_class"]
     model_config = configs[model_str].get("model_config", {})
-    model = model_class(**model_config)
+    img_len = min([500, 2 * args.radius])
+    model = model_class(**model_config, img_len=img_len)
     if not model_str.startswith("naive"):
         dataloader_config = configs[model_str].get("dataloader_config", {})
         optimizer_config = configs[model_str].get("optimizer_config", {})
@@ -398,7 +402,7 @@ def main(args):
         competitions = ["temporal", "spatiotemporal"]
 
         for competition in competitions:
-            additional_args = {}
+            additional_args = {"radius": args.radius, "stride": args.stride}
             if geometric:
                 processed_dir = str(Path(data_raw_path).parent)
                 additional_args = {

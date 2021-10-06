@@ -35,6 +35,7 @@ class T4CDataset(Dataset):
         limit: Optional[int] = None,
         transform: Optional[Callable[[torch.Tensor], torch.Tensor]] = None,
         use_npy: bool = False,
+        **kwargs,
     ):
         """torch dataset from training data.
 
@@ -122,6 +123,7 @@ class PatchT4CDataset(T4CDataset):
         use_per_file=10,
         radius=50,
         auto_filter: str = "train",
+        **kwargs,
     ):
         super().__init__(root_dir, file_filter=file_filter, auto_filter=auto_filter, limit=limit, transform=transform, use_npy=use_npy)
 

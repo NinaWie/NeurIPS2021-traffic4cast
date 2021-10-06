@@ -35,12 +35,9 @@ from util.h5_util import load_h5_file
 from util.h5_util import write_data_to_h5
 from util.logging import t4c_apply_basic_logging_config
 
-
 # cut up
-def create_patches(one_hour):
+def create_patches(one_hour, radius=50, stride=50):
     tlen, xlen, ylen, chlen = one_hour.shape
-    stride = 50
-    radius = 50
     # print(xlen, (xlen - 2*radius), stride, (xlen - 2*radius)//stride)
     nr_in_x = (xlen - 2 * radius) // stride + 2
     nr_in_y = (ylen - 2 * radius) // stride + 2
@@ -73,6 +70,13 @@ def create_patches(one_hour):
             avg_arr[start_x:end_x, start_y:end_y] += 1
             index_arr[counter] = [start_x, end_x, start_y, end_y]
             counter += 1
+
+    # import matplotlib.pyplot as plt
+    # plt.figure(figsize=(10, 10))
+    # plt.imshow(avg_arr)
+    # plt.colorbar()
+    # plt.show()
+    # exit()
     return patch_collection, avg_arr, index_arr
 
 
@@ -103,6 +107,9 @@ def package_submission(
     batch_size=10,
     num_tests_per_file=100,
     h5_compression_params: dict = None,
+    zero_out_speed: bool = False,
+    radius: int = 50,
+    stride: int = 50,
     **additional_transform_args,
 ) -> Path:
     tstamp = datetime.datetime.strftime(datetime.datetime.now(), "%Y%m%d%H%M")
@@ -163,7 +170,7 @@ def package_submission(
                         # )
                         if use_patches:
                             assert test_data.shape[0] == 1, "batch size must be 1"
-                            test_data, avg_arr, index_arr = create_patches(test_data[0])
+                            test_data, avg_arr, index_arr = create_patches(test_data[0], radius=radius, stride=stride)
                             # print("test data", test_data.shape)
                             additional_transform_args["batch_dim"] = True
                             additional_transform_args["from_numpy"] = True
@@ -192,8 +199,15 @@ def package_submission(
                             batch_prediction = stitch_patches(batch_prediction, avg_arr, index_arr)
                             # print("after stitching", batch_prediction.shape)
 
+                        if zero_out_speed:
+                            # Set all speeds to 0 where there is no volume in the corresponding heading
+                            batch_prediction[:, :, :, :, 1] = batch_prediction[:, :, :, :, 1] * (batch_prediction[:, :, :, :, 0] > 0)
+                            batch_prediction[:, :, :, :, 3] = batch_prediction[:, :, :, :, 3] * (batch_prediction[:, :, :, :, 2] > 0)
+                            batch_prediction[:, :, :, :, 5] = batch_prediction[:, :, :, :, 5] * (batch_prediction[:, :, :, :, 4] > 0)
+                            batch_prediction[:, :, :, :, 7] = batch_prediction[:, :, :, :, 7] * (batch_prediction[:, :, :, :, 6] > 0)
+
                         # clipping is important as assigning float array to uint8 array has not the intended effect.... (see `test_submission.test_assign_reload_floats)
-                        prediction[batch_start:batch_end] = batch_prediction
+                        prediction[batch_start:batch_end] = batch_prediction.astype(np.uint8)
 
                         # from metrics.mse import mse
                         # gt = load_h5_file(os.path.join("data", "temp_test_data", f"ANTWERP_train_data_y.h5"))
