@@ -201,10 +201,10 @@ def package_submission(
 
                         if zero_out_speed:
                             # Set all speeds to 0 where there is no volume in the corresponding heading
-                            batch_prediction[:, :, :, :, 1] = batch_prediction[:, :, :, :, 1] * (batch_prediction[:, :, :, :, 0] > 0)
-                            batch_prediction[:, :, :, :, 3] = batch_prediction[:, :, :, :, 3] * (batch_prediction[:, :, :, :, 2] > 0)
-                            batch_prediction[:, :, :, :, 5] = batch_prediction[:, :, :, :, 5] * (batch_prediction[:, :, :, :, 4] > 0)
-                            batch_prediction[:, :, :, :, 7] = batch_prediction[:, :, :, :, 7] * (batch_prediction[:, :, :, :, 6] > 0)
+                            batch_prediction[:, :, :, 1] = batch_prediction[:, :, :, 1] * (batch_prediction[:, :, :, 0] > 0)
+                            batch_prediction[:, :, :, 3] = batch_prediction[:, :, :, 3] * (batch_prediction[:, :, :, 2] > 0)
+                            batch_prediction[:, :, :, 5] = batch_prediction[:, :, :, 5] * (batch_prediction[:, :, :, 4] > 0)
+                            batch_prediction[:, :, :, 7] = batch_prediction[:, :, :, 7] * (batch_prediction[:, :, :, 6] > 0)
 
                         # clipping is important as assigning float array to uint8 array has not the intended effect.... (see `test_submission.test_assign_reload_floats)
                         prediction[batch_start:batch_end] = batch_prediction.astype(np.uint8)
