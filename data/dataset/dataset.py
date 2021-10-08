@@ -62,11 +62,13 @@ class T4CDataset(Dataset):
             if auto_filter == "train":
                 self.file_filter = "**/training/*8ch.h5"
             elif auto_filter == "test":
-                self.file_filter = f"**/training/*2020*{test_city}*8ch.h5"
+                self.file_filter = f"**/training/*{test_city}*8ch.h5"
             print(self.file_filter)
         self._load_dataset()
         if auto_filter == "train" and (file_filter is None):
-            self.files = [f for f in self.files if not (test_city in str(f) and "2020" in str(f))]
+            self.files = [f for f in self.files if not (test_city in str(f))]
+
+        print("auto filter: ", auto_filter, "examples:", np.random.choice(self.files, 20))
 
     def _load_dataset(self):
         self.files = list(Path(self.root_dir).rglob(self.file_filter))

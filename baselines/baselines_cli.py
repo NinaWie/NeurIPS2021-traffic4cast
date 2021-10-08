@@ -192,7 +192,7 @@ def _train_epoch_pure_torch(loader, device, model, optimizer):
         optimizer.step()
 
         loss_to_print += loss.item()
-        if (i + 1) % 5 == 0:
+        if (i + 1) % 50 == 0:
             print(f"train {i+1}/{nr_train_data} ({loss.item()})")
         # if i % 1000 == 0 and i > 0:
         #     logging.info("train_loss %s", loss_to_print / 1000)

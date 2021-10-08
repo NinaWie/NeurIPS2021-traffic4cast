@@ -22,9 +22,7 @@ from torch import nn
 
 
 class UNet(nn.Module):
-    def __init__(
-        self, in_channels=1, n_classes=2, depth=5, wf=6, padding=False, batch_norm=False, up_mode="upconv",
-    ):
+    def __init__(self, in_channels=1, n_classes=2, depth=5, wf=6, padding=False, batch_norm=False, up_mode="upconv", **kwargs):
         """
         Implementation of
         U-Net: Convolutional Networks for Biomedical Image Segmentation
