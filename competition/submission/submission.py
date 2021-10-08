@@ -199,6 +199,7 @@ def package_submission(
                             batch_prediction = stitch_patches(batch_prediction, avg_arr, index_arr)
                             # print("after stitching", batch_prediction.shape)
 
+                        batch_prediction = np.around(batch_prediction).astype(np.uint8)
                         if zero_out_speed:
                             # Set all speeds to 0 where there is no volume in the corresponding heading
                             batch_prediction[:, :, :, 1] = batch_prediction[:, :, :, 1] * (batch_prediction[:, :, :, 0] > 0)
@@ -207,7 +208,7 @@ def package_submission(
                             batch_prediction[:, :, :, 7] = batch_prediction[:, :, :, 7] * (batch_prediction[:, :, :, 6] > 0)
 
                         # clipping is important as assigning float array to uint8 array has not the intended effect.... (see `test_submission.test_assign_reload_floats)
-                        prediction[batch_start:batch_end] = batch_prediction.astype(np.uint8)
+                        prediction[batch_start:batch_end] = batch_prediction
 
                         # from metrics.mse import mse
                         # gt = load_h5_file(os.path.join("data", "temp_test_data", f"ANTWERP_train_data_y.h5"))

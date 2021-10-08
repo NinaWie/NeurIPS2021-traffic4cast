@@ -27,7 +27,8 @@ class Nested_UNet(nn.Module):
     def __init__(self, in_channels=3, n_classes=1, img_len=200, **kwargs):
         super(Nested_UNet, self).__init__()
 
-        self.do_last_block = img_len > 100
+        self.do_last_block = img_len > 80
+        print("DO LAST BLOCK?", self.do_last_block)
 
         n1 = 64
         filters = [n1, n1 * 2, n1 * 4, n1 * 8, n1 * 16]
