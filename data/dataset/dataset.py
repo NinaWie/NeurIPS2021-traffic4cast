@@ -183,6 +183,33 @@ class PatchT4CDataset(T4CDataset):
         # print("inp and outp after transform", data_x.size(), data_y.size())
         return data_x, data_y
 
+    def one_img_cache_data(self):
+        """
+        Test function for a single big file to create the patches
+        """
+        print("\n ---------- SPECIAL DATASET -------------")
+        use_file = np.random.choice(self.files, 1, replace=False)[0]
+        some_hour = int(np.random.rand() * 240)
+        test_arr = load_h5_file(use_file)
+        x_hour = test_arr[some_hour : some_hour + 12]
+        test_out_gt_inds = np.add([1, 2, 3, 6, 9, 12], 11 + some_hour)
+        y_hour = test_arr[test_out_gt_inds]
+
+        data_x, _, _ = create_patches(x_hour)
+        data_y, _, _ = create_patches(y_hour)
+        print(data_x.shape)
+        print(data_y.shape)
+
+        data_x = self._to_torch(data_x)
+        data_y = self._to_torch(data_y)
+
+        if self.transform is not None:
+            data_x = self.transform(data_x)
+            data_y = self.transform(data_y)
+
+        # print("inp and outp after transform", data_x.size(), data_y.size())
+        return data_x, data_y
+
     def __len__(self):
         return self.n_load_files * self.use_per_file
 

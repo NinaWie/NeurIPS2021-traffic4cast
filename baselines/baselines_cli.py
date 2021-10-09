@@ -216,8 +216,7 @@ def _val_pure_torch(loader, device, model):
         model.eval()
         criterion = torch.nn.MSELoss()
         output = model(input_data)
-        # print("min and max", np.min(output.detach().numpy()), np.max(output.detach().numpy()))
-        loss = criterion(output * 255, ground_truth * 255)
+        loss = criterion(output[:, :, 6:-6, 6:-6] * 255, ground_truth[:, :, 6:-6, 6:-6] * 255)
         # print(f"eval {i+1}/{nr_val_data} Loss {loss.item()}")
         running_loss += loss.item()
     return running_loss / nr_val_data  # len(loader) if len(loader) > 0 else running_loss
