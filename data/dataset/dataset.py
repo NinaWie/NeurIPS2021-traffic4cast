@@ -152,7 +152,9 @@ class PatchT4CDataset(T4CDataset):
         counter = 0
         for file in use_files:
             loaded_file = load_h5_file(file)
-            random_times = (np.random.rand(self.use_per_file) * 264).astype(int)
+            # random_times = (np.random.rand(self.use_per_file) * 264).astype(int)
+            random_times = np.clip(np.random.normal(scale=1.2, size=self.use_per_file) * 132 / 3 + 132, 0, 264).astype(int)
+
             rand_x = (np.random.rand(self.use_per_file) * (495 - 2 * self.radius)).astype(int) + self.radius
             rand_y = (np.random.rand(self.use_per_file) * (436 - 2 * self.radius)).astype(int) + self.radius
             # print("loaded file ", file, loaded_file.shape, random_times)

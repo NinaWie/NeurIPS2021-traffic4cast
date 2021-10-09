@@ -110,6 +110,7 @@ def package_submission(
     zero_out_speed: bool = False,
     radius: int = 50,
     stride: int = 50,
+    submission_file_name: str = None,
     **additional_transform_args,
 ) -> Path:
     tstamp = datetime.datetime.strftime(datetime.datetime.now(), "%Y%m%d%H%M")
@@ -125,7 +126,7 @@ def package_submission(
     if submission_output_dir is None:
         submission_output_dir = Path(".")
     submission_output_dir.mkdir(exist_ok=True, parents=True)
-    submission = submission_output_dir / f"submission_{model_str}_{competition}_{tstamp}.zip"
+    submission = submission_output_dir / f"submission{submission_file_name}_{competition}_{tstamp}.zip"
     logging.info(submission)
 
     # competition_files = [os.path.join("data", "temp_test_data", f"ANTWERP_train_data_x.h5")]

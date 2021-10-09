@@ -17,6 +17,8 @@ import sys
 import time
 from pathlib import Path
 from typing import Optional
+from collections import defaultdict
+import json
 
 import numpy as np
 import torch
@@ -156,6 +158,8 @@ def run_model(
 
 
 def train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_model, checkpoint_name=""):
+    save_out_dir = "ckpt" + checkpoint_name
+    results_dict = defaultdict(list)
     best_val_loss = np.inf
     for epoch in range(epochs):
         train_loss = _train_epoch_pure_torch(train_loader, device, train_model, optimizer)
@@ -163,12 +167,18 @@ def train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             # Save if best result
-            save_torch_model_to_checkpoint(model=train_model, epoch=epoch, out_dir="ckpt" + checkpoint_name)
+            save_torch_model_to_checkpoint(model=train_model, epoch=epoch, out_dir=save_out_dir)
         log = "Epoch: {:03d}, Train: {:.4f}, Test: {:.4f}"
+        # save results
+        results_dict["epoch"].append(epoch)
+        results_dict["train loss"].append(train_loss)
+        results_dict["val_loss"].append(val_loss)
         logging.info(log.format(epoch, train_loss, val_loss))
         if (epoch + 1) % 50 == 0:
             # Save regularly as backup
-            save_torch_model_to_checkpoint(model=train_model, epoch=epoch, out_dir="ckpt" + checkpoint_name, out_name=f"epoch_{epoch:04}")
+            with open(os.path.join(save_out_dir, "results.json"), "w") as outfile:
+                json.dump(results_dict, outfile)
+            save_torch_model_to_checkpoint(model=train_model, epoch=epoch, out_dir=save_out_dir, out_name=f"epoch_{epoch:04}")
 
 
 def _train_epoch_pure_torch(loader, device, model, optimizer):
@@ -285,7 +295,7 @@ def create_parser():
     parser.add_argument("--model_str", type=str, help="One of configurations, e.g. 'unet'.", default="unet", required=False)
     parser.add_argument("--resume_checkpoint", type=str, help="torch pt file to be re-loaded.", default=None, required=False)
     parser.add_argument("--data_raw_path", type=str, help="Base dir of raw data", default="./data/raw")
-    parser.add_argument("--submit", type=bool, help="Create submission", default=False)
+    parser.add_argument("--submit", action="store_true", default=False, help="Create submission")
     parser.add_argument(
         "--data_compressed_path",
         type=str,
@@ -417,8 +427,9 @@ def main(args):
                 h5_compression_params={"compression_level": None},
                 submission_output_dir=Path(args.submission_output_dir if args.submission_output_dir is not None else "."),
                 # batch mode for submission
-                batch_size=1 if geometric else args.batch_size,
+                batch_size=1,  #  if geometric else args.batch_size,
                 num_tests_per_file=args.num_tests_per_file,
+                submission_file_name=args.checkpoint_name,
                 **additional_args,
             )
             ground_truth_dir = args.ground_truth_dir
