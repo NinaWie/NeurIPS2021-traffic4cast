@@ -197,7 +197,18 @@ def _train_epoch_pure_torch(loader, device, model, optimizer):
         model.train()
         optimizer.zero_grad()
         output = model(input_data)
-        loss = criterion(output, ground_truth)
+        # loss_volume =
+        # loss = criterion(output, ground_truth)
+        num_channels = ground_truth.size()[1]
+        vol_channels = [i for i in range(num_channels) if i % 2 == 0]
+        speed_channels = [i for i in range(num_channels) if i % 2 != 0]
+        not_null_vols = ground_truth[:, vol_channels] > 0
+        special_loss_speed = criterion(output[:, speed_channels][not_null_vols], ground_truth[:, speed_channels][not_null_vols])
+        loss_volume = criterion(output[:, vol_channels], ground_truth[:, vol_channels])
+        # loss_speed = criterion(output[:, speed_channels], ground_truth[:, speed_channels])
+        # print(loss_volume.item(), 0.001 * special_loss_speed.item())
+        loss = loss_volume + 0.001 * special_loss_speed
+
         loss.backward()
         optimizer.step()
 
@@ -226,9 +237,20 @@ def _val_pure_torch(loader, device, model):
         model.eval()
         criterion = torch.nn.MSELoss()
         output = model(input_data)
+
+        # print("loss before", criterion(output[:, :, 6:-6, 6:-6] * 255, ground_truth[:, :, 6:-6, 6:-6] * 255).item())
+        num_channels = ground_truth.size()[1]
+        vol_channels = [i for i in range(num_channels) if i % 2 == 0]
+        speed_channels = [i for i in range(num_channels) if i % 2 != 0]
+        null_vols = output[:, vol_channels] > 0.5 / 255
+        # print("mean speed bef", torch.mean(output[:, speed_channels]))
+        output[:, speed_channels] = output[:, speed_channels] * null_vols.float()
+        # print("mean after", torch.mean(output[:, speed_channels]))
+
         loss = criterion(output[:, :, 6:-6, 6:-6] * 255, ground_truth[:, :, 6:-6, 6:-6] * 255)
         # print(f"eval {i+1}/{nr_val_data} Loss {loss.item()}")
         running_loss += loss.item()
+        # print("loss after", loss.item())
     return running_loss / nr_val_data  # len(loader) if len(loader) > 0 else running_loss
 
 
