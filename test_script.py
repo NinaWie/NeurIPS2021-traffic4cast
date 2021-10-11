@@ -48,13 +48,14 @@ for i in range(100):
         inp_patch = pre_transform(patch_collection, from_numpy=True, batch_dim=True)
 
         # run
-        cutoff = inp_patch.size()[0]
-        inp_1 = inp_patch[:cutoff]
-        inp_2 = inp_patch[cutoff:]
-        out_1 = model(inp_1)
-        out_2 = model(inp_2)
-        out = torch.cat((out_1, out_2), dim=0)
-        print(inp_1.size(), inp_2.size(), out_1.size(), out.size())
+        out = model(inp_patch)
+        # cutoff = inp_patch.size()[0] # divide into two
+        # inp_1 = inp_patch[:cutoff]
+        # inp_2 = inp_patch[cutoff:]
+        # out_1 = model(inp_1)
+        # out_2 = model(inp_2)
+        # out = torch.cat((out_1, out_2), dim=0)
+        # print(inp_1.size(), inp_2.size(), out_1.size(), out.size())
 
         # post transform
         post_transform = configs[model_str]["post_transform"]
