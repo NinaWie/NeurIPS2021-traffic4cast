@@ -9,12 +9,12 @@ from baselines.baselines_configs import configs
 from metrics.mse import mse
 from competition.submission.submission import create_patches, stitch_patches
 
-model_path = "ckpt_1010_up_r50/epoch_0499.pt"
+model_path = "trained_models/ckpt_1010_up_r50_epoch_0499.pt"
 # "../../../scratch/wnina/ckpt_backups/ckpt_patch_2/epoch_0649.pt"
 model_str = "up_patch"
 radius = 50
-path_data_x = "../../../scratch/wnina/temp_test_data/ANTWERP_train_data_x.h5"
-path_data_y = "../../../scratch/wnina/temp_test_data/ANTWERP_train_data_y.h5"
+path_data_x = "../../../data/t4c2021/temp_test_data/ANTWERP_train_data_x.h5"
+path_data_y = "../../../data/t4c2021/temp_test_data/ANTWERP_train_data_y.h5"
 
 
 def load_model(path):
@@ -36,7 +36,7 @@ strides, samples, mses_of_patches, mses_of_stitched, corr_mses_of_patches, corr_
 model = load_model(model_path)
 
 for i in range(100):
-    for stride in [30, 50, 100]:
+    for stride in [20, 30, 50, 75, 100]:
         print(i, "stride", stride)
         x_hour = test_data_x[i]
         y_hour = test_data_y[i]
@@ -48,7 +48,13 @@ for i in range(100):
         inp_patch = pre_transform(patch_collection, from_numpy=True, batch_dim=True)
 
         # run
-        out = model(inp_patch)
+        cutoff = inp_patch.size()[0]
+        inp_1 = inp_patch[:cutoff]
+        inp_2 = inp_patch[cutoff:]
+        out_1 = model(inp_1)
+        out_2 = model(inp_2)
+        out = torch.cat((out_1, out_2), dim=0)
+        print(inp_1.size(), inp_2.size(), out_1.size(), out.size())
 
         # post transform
         post_transform = configs[model_str]["post_transform"]
@@ -57,23 +63,24 @@ for i in range(100):
         gt_patches, _, _ = create_patches(y_hour, radius=radius, stride=stride)
 
         mse_of_patches = mse(out_patch, gt_patches)
-        print("MSE patches", mse_of_patches)
+        # print("MSE patches", mse_of_patches)
 
         # stitch back together
         pred = stitch_patches(out_patch, avg_arr, index_arr)
 
         mse_of_stitched = mse(pred, y_hour)
-        print("MSE stitched", mse_of_stitched)
+        # print("MSE stitched", mse_of_stitched)
+        print("(MSEs bef correction", mse_of_patches, mse_of_stitched, ")")
 
         # correct for error
         use_inds = []
         for k, ind_lin in enumerate(index_arr):
             if np.all(ind_lin <= 400):
                 use_inds.append(k)
-        use_x_max, use_y_max = (np.max(index_arr[use_inds, 1]), np.max(index_arr[use_inds, 3]))
+        use_x_max, use_y_max = (int(np.max(index_arr[use_inds, 1])), int(np.max(index_arr[use_inds, 3])))
         corrected_mse_of_patches = mse(out_patch[use_inds], gt_patches[use_inds])
         corrected_mse_of_stitched = mse(pred[:, :use_x_max, :use_y_max], y_hour[:, :use_x_max, :use_y_max])
-        print("CORRECTED", corrected_mse_of_patches, corrected_mse_of_stitched)
+        print("MSEs patches vs stitched", corrected_mse_of_patches, corrected_mse_of_stitched)
 
         strides.append(stride)
         samples.append(i)
