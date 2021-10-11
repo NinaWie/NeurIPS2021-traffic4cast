@@ -2,27 +2,19 @@ import torch
 import os
 import numpy as np
 import matplotlib.pyplot as plt
-from collections import defaultdict
-import json
-import glob
-import time
+import pandas as pd
 
-from util.check_data_raw_dir import check_raw_data_dir
-from util.data_range import generate_date_range
 from util.h5_util import load_h5_file
-from baselines.baselines_unet_separate import load_torch_model_from_checkpoint
 from baselines.baselines_configs import configs
 from metrics.mse import mse
 from competition.submission.submission import create_patches, stitch_patches
 
-model_path = "../../../scratch/wnina/ckpt_backups/ckpt_patch_2/epoch_0649.pt"
+model_path = "ckpt_1010_up_r50/epoch_0499.pt"
+# "../../../scratch/wnina/ckpt_backups/ckpt_patch_2/epoch_0649.pt"
 model_str = "up_patch"
 radius = 50
 path_data_x = "../../../scratch/wnina/temp_test_data/ANTWERP_train_data_x.h5"
 path_data_y = "../../../scratch/wnina/temp_test_data/ANTWERP_train_data_y.h5"
-
-
-results = defaultdict(list)
 
 
 def load_model(path):
@@ -40,6 +32,7 @@ test_data_y = load_h5_file(path_data_y)
 print(test_data_x.shape, test_data_y.shape)
 
 
+strides, samples, mses_of_patches, mses_of_stitched, corr_mses_of_patches, corr_mses_of_stitched = [], [], [], [], [], []
 model = load_model(model_path)
 
 for i in range(100):
@@ -71,11 +64,29 @@ for i in range(100):
 
         mse_of_stitched = mse(pred, y_hour)
         print("MSE stitched", mse_of_stitched)
-        results["stride"].append(stride)
-        results["sample"].append(i)
-        results["mse_patches"].append(mse_of_patches)
-        results["mse_stitched"].append(mse_of_stitched)
 
+        # correct for error
+        use_inds = []
+        for k, ind_lin in enumerate(index_arr):
+            if np.all(ind_lin <= 400):
+                use_inds.append(k)
+        use_x_max, use_y_max = (np.max(index_arr[use_inds, 1]), np.max(index_arr[use_inds, 3]))
+        corrected_mse_of_patches = mse(out_patch[use_inds], gt_patches[use_inds])
+        corrected_mse_of_stitched = mse(pred[:, :use_x_max, :use_y_max], y_hour[:, :use_x_max, :use_y_max])
+        print("CORRECTED", corrected_mse_of_patches, corrected_mse_of_stitched)
 
-with open(os.path.join("results_test_script.json"), "w") as outfile:
-    json.dump(results, outfile)
+        strides.append(stride)
+        samples.append(i)
+        mses_of_patches.append(mse_of_patches)
+        mses_of_stitched.append(mse_of_stitched)
+        corr_mses_of_patches.append(corrected_mse_of_patches)
+        corr_mses_of_stitched.append(corrected_mse_of_stitched)
+
+df = pd.DataFrame()
+df["sample"] = samples
+df["stride"] = strides
+df["mse_patches"] = mses_of_patches
+df["mse_stitched"] = mses_of_stitched
+df["corr_mse_patches"] = corr_mses_of_patches
+df["corr_mse_stitched"] = corr_mses_of_stitched
+df.to_csv("results_test_script.csv")
