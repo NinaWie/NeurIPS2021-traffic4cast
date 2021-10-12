@@ -370,7 +370,7 @@ def main(args):
             untar_files(files=tar_files, destination=data_raw_path)
             logging.info("Done untar %s tar balls to %s.", len(tar_files), data_raw_path)
 
-    assert args.stride < 2 * args.radius, "stride must cover data"
+    assert args.stride <= 2 * args.radius, "stride must cover data"
     if args.epochs > 0:
         train_dataset = dataset_class(root_dir=data_raw_path, auto_filter="train", **dataset_config, limit=args.limit, radius=args.radius)
         val_dataset = dataset_class(root_dir=data_raw_path, auto_filter="test", **dataset_config, limit=args.val_limit, radius=args.radius)
@@ -407,7 +407,7 @@ def main(args):
             )
 
     if args.submit:
-        competitions = ["temporal", "spatiotemporal"]
+        competitions = ["spatiotemporal"]
 
         for competition in competitions:
             additional_args = {"radius": args.radius, "stride": args.stride}

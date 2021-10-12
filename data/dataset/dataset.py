@@ -17,6 +17,7 @@ from typing import Tuple
 
 import time
 import numpy as np
+from scipy.ndimage import rotate
 import torch
 from torch.utils.data import Dataset
 
@@ -125,6 +126,7 @@ class PatchT4CDataset(T4CDataset):
         use_per_file=10,
         radius=50,
         auto_filter: str = "train",
+        augment=True,
         **kwargs,
     ):
         super().__init__(root_dir, file_filter=file_filter, auto_filter=auto_filter, limit=limit, transform=transform, use_npy=use_npy)
@@ -137,6 +139,7 @@ class PatchT4CDataset(T4CDataset):
         else:
             self.resample_every_x_epoch = 1
 
+        self.augment = augment
         self.internal_counter = 0
         self.auto_filter = auto_filter
         self.radius = radius
@@ -149,6 +152,7 @@ class PatchT4CDataset(T4CDataset):
         data_x = np.zeros((self.n_load_files * self.use_per_file, 12, 2 * self.radius, 2 * self.radius, 8))
         data_y = np.zeros((self.n_load_files * self.use_per_file, 6, 2 * self.radius, 2 * self.radius, 8))
         # print("allocated:", data_x.shape, data_y.shape)
+        img_plane = (1, 2)
         counter = 0
         for file in use_files:
             loaded_file = load_h5_file(file)
@@ -164,6 +168,21 @@ class PatchT4CDataset(T4CDataset):
                 s_x, e_x = (rand_x[i] - self.radius, rand_x[i] + self.radius)  # start and end x of patch
                 s_y, e_y = (rand_y[i] - self.radius, rand_y[i] + self.radius)  # start and end y of patch
                 two_hours = loaded_file[start_hour:end_hour, s_x:e_x, s_y:e_y]
+
+                if self.augment:
+                    # flip horizontally
+                    if np.random.rand() < 0.5:
+                        two_hours = np.flip(two_hours, axis=img_plane[0])
+                        # print("flipped along axis 1", two_hours.shape)
+                    # flip vertically
+                    if np.random.rand() < 0.5:
+                        two_hours = np.flip(two_hours, axis=img_plane[1])
+                        # print("flipped along axis 2", two_hours.shape)
+                    # rotate
+                    rot_angle = np.random.choice([0, 90, 180, 270])
+                    two_hours = rotate(two_hours, rot_angle, axes=img_plane)
+                    # print("rotated by", rot_angle, two_hours.shape)
+
                 # print("two hours", start_hour, s_x, s_y, two_hours.shape)
                 # print("two hours", two_hours.shape)
                 # self._load_h5_file(self.files[file_idx], sl=slice(start_hour, start_hour + 12 * 2 + 1))
