@@ -385,8 +385,7 @@ def main(args):
     logging.info("Create train_model.")
     model_class = configs[model_str]["model_class"]
     model_config = configs[model_str].get("model_config", {})
-    img_len = min([500, 2 * args.radius])
-    model = model_class(**model_config, img_len=img_len)
+    model = model_class(**model_config)
     if not model_str.startswith("naive"):
         dataloader_config = configs[model_str].get("dataloader_config", {})
         optimizer_config = configs[model_str].get("optimizer_config", {})

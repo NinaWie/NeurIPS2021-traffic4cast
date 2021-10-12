@@ -24,8 +24,27 @@ from baselines.unet_plusplus import Nested_UNet
 from baselines.unet import UNetTransfomer
 from data.dataset.dataset_geometric import GraphTransformer
 from data.dataset.dataset import T4CDataset, PatchT4CDataset
+import segmentation_models_pytorch as smp
 
+smp_model_cfg = {"in_channels": 12 * 8, "classes": 6 * 8}
+smp_post_transform = partial(UNetTransfomer.unet_post_transform, stack_channels_on_time=True, crop=(0, 0, 0, 0), batch_dim=True)
+smp_pre_transform = partial(UNetTransfomer.unet_pre_transform, stack_channels_on_time=True, zeropad2d=(0, 0, 0, 0), batch_dim=True, from_numpy=True)
+smp_dataset_cfg = {"transform": partial(UNetTransfomer.unet_pre_transform, stack_channels_on_time=True, zeropad2d=(0, 0, 0, 0), batch_dim=False)}
 configs = {
+    "smp_upp": {
+        "model_class": smp.UnetPlusPlus,
+        "model_config": smp_model_cfg,
+        "dataset_config": smp_dataset_cfg,
+        "pre_transform": smp_pre_transform,
+        "post_transform": smp_post_transform,
+    },
+    "smp_deeplab3": {
+        "model_class": smp.DeepLabV3,
+        "model_config": smp_model_cfg,
+        "dataset_config": smp_dataset_cfg,
+        "pre_transform": smp_pre_transform,
+        "post_transform": smp_post_transform,
+    },
     "unet": {
         "model_class": UNet,
         # zeropad2d the input data with 0 to ensure same size after upscaling by the network inputs [495, 436] -> [496, 448]

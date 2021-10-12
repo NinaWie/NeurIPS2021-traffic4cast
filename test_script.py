@@ -36,7 +36,7 @@ strides, samples, mses_of_patches, mses_of_stitched, corr_mses_of_patches, corr_
 model = load_model(model_path)
 
 for i in range(100):
-    for stride in [20, 30, 50, 75, 100]:
+    for stride in [30, 50, 75, 100]:
         print(i, "stride", stride)
         x_hour = test_data_x[i]
         y_hour = test_data_y[i]

@@ -24,11 +24,8 @@ class conv_block_nested(nn.Module):
 
 
 class Nested_UNet(nn.Module):
-    def __init__(self, in_channels=3, n_classes=1, img_len=200, **kwargs):
+    def __init__(self, in_channels=3, n_classes=1, **kwargs):
         super(Nested_UNet, self).__init__()
-
-        self.do_last_block = img_len > 80
-        print("DO LAST BLOCK?", self.do_last_block)
 
         n1 = 64
         filters = [n1, n1 * 2, n1 * 4, n1 * 8, n1 * 16]
@@ -59,6 +56,7 @@ class Nested_UNet(nn.Module):
         self.final = nn.Conv2d(filters[0], n_classes, kernel_size=1)
 
     def forward(self, x, *args, **kwargs):
+        do_last_block = x.size()[2] > 80
 
         x0_0 = self.conv0_0(x)
         x1_0 = self.conv1_0(self.pool(x0_0))
@@ -73,7 +71,7 @@ class Nested_UNet(nn.Module):
         x1_2 = self.conv1_2(torch.cat([x1_0, x1_1, self.Up(x2_1)], 1))
         x0_3 = self.conv0_3(torch.cat([x0_0, x0_1, x0_2, self.Up(x1_2)], 1))
 
-        if self.do_last_block:
+        if do_last_block:
             x4_0 = self.conv4_0(self.pool(x3_0))
             x3_1 = self.conv3_1(torch.cat([x3_0, self.Up(x4_0)], 1))
             x2_2 = self.conv2_2(torch.cat([x2_0, x2_1, self.Up(x3_1)], 1))
