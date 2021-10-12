@@ -118,6 +118,18 @@ try:
         "pre_transform": smp_pre_transform,
         "post_transform": smp_post_transform,
     }
+    configs["smp_up_full"] = {
+        "model_class": smp.UnetPlusPlus,
+        "model_config": smp_model_cfg,
+        "dataset_config": {
+            "dataset": T4CDataset,
+            "transform": partial(UNetTransfomer.unet_pre_transform, stack_channels_on_time=True, zeropad2d=(38, 38, 9, 8), batch_dim=False),
+        },
+        "pre_transform": partial(
+            UNetTransfomer.unet_pre_transform, stack_channels_on_time=True, zeropad2d=(38, 38, 9, 8), batch_dim=True, from_numpy=True
+        ),
+        "post_transform": partial(UNetTransfomer.unet_post_transform, stack_channels_on_time=True, crop=(38, 38, 9, 8), batch_dim=True),
+    }
 
     configs["smp_deeplab3"] = {
         "model_class": smp.DeepLabV3,

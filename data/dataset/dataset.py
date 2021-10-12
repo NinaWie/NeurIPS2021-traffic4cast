@@ -139,9 +139,8 @@ class PatchT4CDataset(T4CDataset):
         else:
             self.resample_every_x_epoch = 1
 
-        print("AUGMENT", self.augment)
-
         self.augment = augment
+        print("AUGMENT", self.augment)
         self.internal_counter = 0
         self.auto_filter = auto_filter
         self.radius = radius
