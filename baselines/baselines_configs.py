@@ -138,5 +138,19 @@ try:
         "pre_transform": smp_pre_transform,
         "post_transform": smp_post_transform,
     }
+    configs["smp_pan"] = {
+        "model_class": smp.PAN,
+        "model_config": smp_model_cfg,
+        "dataset_config": smp_dataset_cfg,
+        "pre_transform": smp_pre_transform,
+        "post_transform": smp_post_transform,
+    }
+    configs["smp_pspnet"] = {
+        "model_class": smp.PSPNet,
+        "model_config": smp_model_cfg,
+        "dataset_config": smp_dataset_cfg,
+        "pre_transform": smp_pre_transform,
+        "post_transform": smp_post_transform,
+    }
 except:
     print("SMP module not installed")
