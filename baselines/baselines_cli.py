@@ -406,7 +406,7 @@ def main(args):
         logging.info("Going to run train_model.")
         logging.info(system_status())
         if args.epochs > 0:
-            padding = dataset_config["transform"].keywords["crop"]
+            padding = dataset_config["transform"].keywords["zeropad2d"]
             print("PADDING", padding)
             _, device = run_model(
                 train_model=model,
