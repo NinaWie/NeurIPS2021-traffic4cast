@@ -59,7 +59,6 @@ class T4CDataset(Dataset):
         if file_filter is not None:
             self.file_filter = file_filter
         else:
-            print("USING AUTO FILTER")
             if auto_filter == "train":
                 self.file_filter = "**/training/*8ch.h5"
             elif auto_filter == "test":

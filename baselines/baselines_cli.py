@@ -323,6 +323,7 @@ def create_parser():
     parser.add_argument("--device", type=str, default=None, required=False, help="Force usage of device.")
     parser.add_argument("--stride", type=int, default=30, required=False, help="Stride for submission")
     parser.add_argument("--radius", type=int, default=50, required=False, help="Radius for patching")
+    parser.add_argument("--train_city", type=str, default=None, required=False, help="Training data city")
     parser.add_argument(
         "--device_ids", nargs="*", default=None, required=False, help="Whitelist of device ids. If not given, all device ids are taken."
     )
@@ -380,9 +381,22 @@ def main(args):
 
     assert args.stride <= 2 * args.radius, "stride must cover data"
     if args.epochs > 0:
-        train_dataset = dataset_class(root_dir=data_raw_path, auto_filter="train", **dataset_config, limit=args.limit, radius=args.radius)
+        train_dataset = dataset_class(
+            root_dir=data_raw_path,
+            auto_filter="train",
+            **dataset_config,
+            file_filter=f"**/training/*{args.train_city}*8ch.h5",
+            limit=args.limit,
+            radius=args.radius,
+        )
         val_dataset = dataset_class(
-            root_dir=data_raw_path, auto_filter="test", **dataset_config, limit=args.val_limit, radius=args.radius, augment=False
+            root_dir=data_raw_path,
+            auto_filter="test",
+            **dataset_config,
+            file_filter=f"**/training/*{args.train_city}*8ch.h5",
+            limit=args.val_limit,
+            radius=args.radius,
+            augment=False,
         )
         # if geometric:
         #     dataset = T4CGeometricDataset(root=str(Path(data_raw_path).parent), file_filter=file_filter, num_workers=args.num_workers, **dataset_config)
