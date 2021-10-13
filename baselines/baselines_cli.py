@@ -215,8 +215,8 @@ def _train_epoch_pure_torch(loader, device, model, optimizer):
 def _val_pure_torch(loader, device, model, padding=(0, 0, 0, 0)):
     s_x, e_x, s_y, e_y = padding
     # indexing :0 does not wotk
-    e_x = loader.dataset[0].size()[2] if e_x == 0 else e_x
-    e_y = loader.dataset[0].size()[3] if e_y == 0 else e_y
+    e_x = 1 if e_x == 0 else e_x
+    e_y = 1 if e_y == 0 else e_y
     print("validation with output padding", s_x, e_x, s_y, e_y)
 
     running_loss = 0
