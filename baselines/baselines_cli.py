@@ -72,6 +72,7 @@ def run_model(
     data_parallel=False,
     device_ids=None,
     checkpoint_name="",
+    padding=(0, 0, 0, 0),
     **kwargs,
 ):  # noqa
 
@@ -150,20 +151,20 @@ def run_model(
     # Loss
     loss = F.mse_loss
     if True:  # geometric:
-        train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_model, checkpoint_name=checkpoint_name)
+        train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_model, checkpoint_name=checkpoint_name, padding=padding)
     else:
         train_ignite(device, epochs, loss, optimizer, train_loader, val_loader, train_model, checkpoint_name=checkpoint_name)
     logging.info("End training of on %s for %s epochs", device, epochs)
     return train_model, device
 
 
-def train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_model, checkpoint_name=""):
+def train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_model, checkpoint_name="", padding=(0, 0, 0, 0)):
     save_out_dir = "ckpt" + checkpoint_name
     results_dict = defaultdict(list)
     best_val_loss = np.inf
     for epoch in range(epochs):
         train_loss = _train_epoch_pure_torch(train_loader, device, train_model, optimizer)
-        val_loss = _val_pure_torch(val_loader, device, train_model)
+        val_loss = _val_pure_torch(val_loader, device, train_model, padding=padding)
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             # Save if best result
@@ -212,7 +213,6 @@ def _train_epoch_pure_torch(loader, device, model, optimizer):
 
 @torch.no_grad()
 def _val_pure_torch(loader, device, model, padding=(0, 0, 0, 0)):
-    padding = dataset_config["transform"].keywords["crop"]
     s_x, e_x, s_y, e_y = padding
     # indexing :0 does not wotk
     e_x = loader[0].size()[2] if e_x == 0 else e_x
@@ -406,6 +406,8 @@ def main(args):
         logging.info("Going to run train_model.")
         logging.info(system_status())
         if args.epochs > 0:
+            padding = dataset_config["transform"].keywords["crop"]
+            print("PADDING", padding)
             _, device = run_model(
                 train_model=model,
                 train_dataset=train_dataset,
@@ -413,6 +415,7 @@ def main(args):
                 dataloader_config=dataloader_config,
                 optimizer_config=optimizer_config,
                 geometric=geometric,
+                padding=padding,
                 **(vars(args)),
             )
 
