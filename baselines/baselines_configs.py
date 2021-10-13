@@ -102,7 +102,7 @@ configs = {
 try:
     import segmentation_models_pytorch as smp
 
-    smp_model_cfg = {"in_channels": 12 * 8, "classes": 6 * 8}
+    smp_model_cfg = {"in_channels": 12 * 8, "classes": 6 * 8, "activation": "sigmoid"}
     smp_post_transform = partial(UNetTransfomer.unet_post_transform, stack_channels_on_time=True, crop=(0, 0, 0, 0), batch_dim=True)
     smp_pre_transform = partial(
         UNetTransfomer.unet_pre_transform, stack_channels_on_time=True, zeropad2d=(0, 0, 0, 0), batch_dim=True, from_numpy=True

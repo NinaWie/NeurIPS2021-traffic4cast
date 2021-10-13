@@ -118,7 +118,7 @@ def package_submission(
     if h5_compression_params is None:
         h5_compression_params = {}
 
-    use_patches = "patch" in model_str
+    use_patches = "patch" in model_str or ("smp" in model_str and not "full" in model_str)
     if use_patches:
         print("CUT UP IN PATCHES", use_patches)
         assert batch_size == 1, "for patches we need batch size 1"
@@ -187,7 +187,10 @@ def package_submission(
                         test_data = test_data.to(device)
                         additional_data = torch.from_numpy(additional_data)
                         additional_data = additional_data.to(device)
-                        batch_prediction = model(test_data, city=city, additional_data=additional_data)
+                        if "smp" in model_str:
+                            batch_prediction = model(test_data)
+                        else:
+                            batch_prediction = model(test_data, city=city, additional_data=additional_data)
 
                         if post_transform is not None:
                             batch_prediction = post_transform(batch_prediction, city=city, **additional_transform_args)

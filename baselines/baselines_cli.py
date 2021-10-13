@@ -211,7 +211,14 @@ def _train_epoch_pure_torch(loader, device, model, optimizer):
 
 
 @torch.no_grad()
-def _val_pure_torch(loader, device, model):
+def _val_pure_torch(loader, device, model, padding=(0, 0, 0, 0)):
+    padding = dataset_config["transform"].keywords["crop"]
+    s_x, e_x, s_y, e_y = padding
+    # indexing :0 does not wotk
+    e_x = loader[0].size()[2] if e_x == 0 else e_x
+    e_y = loader[0].size()[3] if e_y == 0 else e_y
+    print("validation with output padding", s_x, e_x, s_y, e_y)
+
     running_loss = 0
     nr_val_data = len(loader)
     for i, (input_data, ground_truth) in enumerate(loader):  # tqdm.tqdm(loader, desc="val"):
@@ -226,7 +233,8 @@ def _val_pure_torch(loader, device, model):
         model.eval()
         criterion = torch.nn.MSELoss()
         output = model(input_data)
-        loss = criterion(output[:, :, 6:-6, 6:-6] * 255, ground_truth[:, :, 6:-6, 6:-6] * 255)
+
+        loss = criterion(output[:, :, s_x:-e_x, s_y:-e_y] * 255, ground_truth[:, :, s_x:-e_x, s_y:-e_y] * 255)
         # print(f"eval {i+1}/{nr_val_data} Loss {loss.item()}")
         running_loss += loss.item()
     return running_loss / nr_val_data  # len(loader) if len(loader) > 0 else running_loss
@@ -373,7 +381,9 @@ def main(args):
     assert args.stride <= 2 * args.radius, "stride must cover data"
     if args.epochs > 0:
         train_dataset = dataset_class(root_dir=data_raw_path, auto_filter="train", **dataset_config, limit=args.limit, radius=args.radius)
-        val_dataset = dataset_class(root_dir=data_raw_path, auto_filter="test", **dataset_config, limit=args.val_limit, radius=args.radius, augment=False)
+        val_dataset = dataset_class(
+            root_dir=data_raw_path, auto_filter="test", **dataset_config, limit=args.val_limit, radius=args.radius, augment=False
+        )
         # if geometric:
         #     dataset = T4CGeometricDataset(root=str(Path(data_raw_path).parent), file_filter=file_filter, num_workers=args.num_workers, **dataset_config)
         # else:
