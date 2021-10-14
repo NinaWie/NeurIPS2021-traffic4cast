@@ -189,6 +189,15 @@ def package_submission(
                         additional_data = additional_data.to(device)
                         if "smp" in model_str:
                             batch_prediction = model(test_data)
+                        elif len(test_data)>100:
+                            internal_batch_size = 50
+                            n_samples = test_data.size()[0]
+                            img_len = test_data.size()[2]
+                            batch_prediction = torch.zeros(n_samples, 48, img_len, img_len)
+                            for i in range(n_samples//internal_batch_size):
+                                batch_prediction[i:i+internal_batch_size] = model(test_data[i:i+internal_batch_size])
+                            print("last one size", test_data[i+internal_batch_size:].size(), i+internal_batch_size)
+                            batch_prediction[i+internal_batch_size:] = model(test_data[i+internal_batch_size:])
                         else:
                             batch_prediction = model(test_data, city=city, additional_data=additional_data)
 
