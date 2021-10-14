@@ -417,10 +417,10 @@ def main(args):
             if False:
                 # dictionary of models!
                 ckpt_list = [
-                    "ckpt_berlin_up_2/best.pt",
-                    "ckpt_istanbul_up_2/best.pt",
-                    "ckpt_melbourne_up_2/best.pt",
-                    "ckpt_chicago_up_2/epoch_0199.pt",
+                    "ckpt_berlin_up_2_best.pt",
+                    "ckpt_istanbul_up_2_best.pt",
+                    "ckpt_melbourne_up/epoch_0199.pt",
+                    "ckpt_chicago_up/epoch_0199.pt",
                 ]
                 model = {}
                 for ckpt_city, city in zip(ckpt_list, ["BERLIN", "ISTANBUL", "MELBOURNE", "CHICAGO"]):
