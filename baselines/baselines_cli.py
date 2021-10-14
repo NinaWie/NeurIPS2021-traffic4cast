@@ -414,12 +414,27 @@ def main(args):
         dataloader_config = configs[model_str].get("dataloader_config", {})
         optimizer_config = configs[model_str].get("optimizer_config", {})
         if resume_checkpoint is not None:
-            logging.info("Reload checkpoint %s", resume_checkpoint)
-            load_torch_model_from_checkpoint(checkpoint=resume_checkpoint, model=model)
+            if False:
+                # dictionary of models!
+                ckpt_list = [
+                    "ckpt_berlin_up_2/best.pt",
+                    "ckpt_istanbul_up_2/best.pt",
+                    "ckpt_melbourne_up_2/best.pt",
+                    "ckpt_chicago_up_2/epoch_0199.pt",
+                ]
+                model = {}
+                for ckpt_city, city in zip(ckpt_list, ["BERLIN", "ISTANBUL", "MELBOURNE", "CHICAGO"]):
+                    logging.info("Reload checkpoint %s", ckpt_city)
+                    model_city = model_class(**model_config)
+                    load_torch_model_from_checkpoint(checkpoint=ckpt_city, model=model_city)
+                    model[city] = model_city
+            else:
+                logging.info("Reload checkpoint %s", resume_checkpoint)
+                load_torch_model_from_checkpoint(checkpoint=resume_checkpoint, model=model)
 
-        logging.info("Going to run train_model.")
-        logging.info(system_status())
         if args.epochs > 0:
+            logging.info("Going to run train_model.")
+            logging.info(system_status())
             padding = dataset_config["transform"].keywords["zeropad2d"]
             print("PADDING", padding)
             _, device = run_model(
