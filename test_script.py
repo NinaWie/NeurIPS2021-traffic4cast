@@ -9,7 +9,7 @@ from baselines.baselines_configs import configs
 from metrics.mse import mse
 from competition.submission.submission import create_patches, stitch_patches
 
-model_path = "trained_models/ckpt_1010_up_r50_epoch_0499.pt"
+model_path = "ckpt_average.pt"
 # "../../../scratch/wnina/ckpt_backups/ckpt_patch_2/epoch_0649.pt"
 model_str = "up_patch"
 radius = 50
@@ -36,7 +36,7 @@ strides, samples, mses_of_patches, mses_of_stitched, corr_mses_of_patches, corr_
 model = load_model(model_path)
 
 for i in range(100):
-    for stride in [30, 50, 75, 100]:
+    for stride in [10, 20, 30, 50, 75, 100]:
         print(i, "stride", stride)
         x_hour = test_data_x[i]
         y_hour = test_data_y[i]
@@ -47,15 +47,19 @@ for i in range(100):
         pre_transform = configs[model_str]["pre_transform"]
         inp_patch = pre_transform(patch_collection, from_numpy=True, batch_dim=True)
 
-        # run
-        out = model(inp_patch)
-        # cutoff = inp_patch.size()[0] # divide into two
-        # inp_1 = inp_patch[:cutoff]
-        # inp_2 = inp_patch[cutoff:]
-        # out_1 = model(inp_1)
-        # out_2 = model(inp_2)
-        # out = torch.cat((out_1, out_2), dim=0)
-        # print(inp_1.size(), inp_2.size(), out_1.size(), out.size())
+        # run - batch if it's too big
+        internal_batch_size = 50
+        n_samples = inp_patch.size()[0]
+        img_len = inp_patch.size()[2]
+        out = torch.zeros(n_samples, 48, img_len, img_len)
+        for i in range(internal_batch_size // n_samples):
+            s_b = i * internal_batch_size
+            e_b = (i + 1) * internal_batch_size
+            print("step ", i, s_b, e_b)
+            out[s_b:e_b] = model(inp_patch[s_b:e_b])
+        print("last one size", inp_patch[i + internal_batch_size :].size(), i + internal_batch_size)
+        out[i + internal_batch_size :] = model(inp_patch[i + internal_batch_size :])
+        # out = model(inp_patch)
 
         # post transform
         post_transform = configs[model_str]["post_transform"]
@@ -89,6 +93,17 @@ for i in range(100):
         mses_of_stitched.append(mse_of_stitched)
         corr_mses_of_patches.append(corrected_mse_of_patches)
         corr_mses_of_stitched.append(corrected_mse_of_stitched)
+    # SAVE EVERY 10 steps
+    if i % 10 == 0:
+        df = pd.DataFrame()
+        df["sample"] = samples
+        df["stride"] = strides
+        df["mse_patches"] = mses_of_patches
+        df["mse_stitched"] = mses_of_stitched
+        df["corr_mse_patches"] = corr_mses_of_patches
+        df["corr_mse_stitched"] = corr_mses_of_stitched
+        df.to_csv(f"results_test_script/results_test_script_{i}.csv")
+
 
 df = pd.DataFrame()
 df["sample"] = samples
@@ -97,4 +112,4 @@ df["mse_patches"] = mses_of_patches
 df["mse_stitched"] = mses_of_stitched
 df["corr_mse_patches"] = corr_mses_of_patches
 df["corr_mse_stitched"] = corr_mses_of_stitched
-df.to_csv("results_test_script.csv")
+df.to_csv("results_test_script/results_test_script.csv")
