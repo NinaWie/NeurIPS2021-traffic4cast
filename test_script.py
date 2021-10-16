@@ -9,6 +9,7 @@ from util.h5_util import load_h5_file
 from baselines.baselines_configs import configs
 from metrics.mse import mse
 from competition.submission.submission import create_patches, stitch_patches
+from util.monitoring import system_status
 
 model_path = "ckpt_average.pt"
 # "../../../scratch/wnina/ckpt_backups/ckpt_patch_2/epoch_0649.pt"
@@ -37,7 +38,7 @@ model.eval()
 
 for i in range(100):
     x_hour = load_h5_file(path_data_x, sl=slice(i, i + 1), to_torch=False)[0]
-    y_hour = load_h5_file(path_data_x, sl=slice(i, i + 1), to_torch=False)[0]
+    y_hour = load_h5_file(path_data_x, sl=slice(i, i + 1), to_torch=False)[0, [0, 1, 2, 5, 8, 11]]
     print("loaded data for sample ", i, x_hour.shape, y_hour.shape)
     for stride in [10, 20, 30, 50, 75, 100]:
         print(i, "stride", stride)
@@ -57,9 +58,12 @@ for i in range(100):
             s_b = j * internal_batch_size
             e_b = (j + 1) * internal_batch_size
             batch_patch = inp_patch[s_b:e_b].to(device)
+            # print(system_status())
             out[s_b:e_b] = model(batch_patch).detach().cpu()
-        print("last one size", inp_patch[e_b:].size(), j + internal_batch_size)
-        out[e_b:] = model(inp_patch[e_b:])
+        if n_samples % internal_batch_size != 0:
+            print("last one size", inp_patch[e_b:].size(), j + internal_batch_size)
+            last_batch = inp_patch[e_b:].to(device)
+            out[e_b:] = model(last_batch).detach().cpu()
         # out = model(inp_patch)
 
         # post transform
