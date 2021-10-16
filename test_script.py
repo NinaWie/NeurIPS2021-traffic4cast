@@ -9,6 +9,7 @@ from util.h5_util import load_h5_file
 from baselines.baselines_configs import configs
 from metrics.mse import mse
 from competition.submission.submission import create_patches, stitch_patches
+from util.monitoring import system_status
 
 model_path = "ckpt_average.pt"
 # "../../../scratch/wnina/ckpt_backups/ckpt_patch_2/epoch_0649.pt"
@@ -58,9 +59,11 @@ for i in range(100):
             e_b = (j + 1) * internal_batch_size
             print("step ", j, s_b, e_b)
             print("mem before", psutil.virtual_memory()[2])
+            print(system_status())
             batch_patch = inp_patch[s_b:e_b].to(device)
             out[s_b:e_b] = model(batch_patch)
             print("mem after", psutil.virtual_memory()[2])
+            print(system_status())
         print("last one size", inp_patch[e_b:].size(), j + internal_batch_size)
         out[e_b:] = model(inp_patch[e_b:])
         # out = model(inp_patch)
