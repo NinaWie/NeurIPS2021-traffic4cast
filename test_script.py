@@ -54,6 +54,7 @@ for i in range(100):
         n_samples = inp_patch.size()[0]
         img_len = inp_patch.size()[2]
         out = torch.zeros(n_samples, 48, img_len, img_len)
+        e_b = 0
         for j in range(n_samples // internal_batch_size):
             s_b = j * internal_batch_size
             e_b = (j + 1) * internal_batch_size
@@ -61,7 +62,6 @@ for i in range(100):
             # print(system_status())
             out[s_b:e_b] = model(batch_patch).detach().cpu()
         if n_samples % internal_batch_size != 0:
-            print("last one size", inp_patch[e_b:].size(), j + internal_batch_size)
             last_batch = inp_patch[e_b:].to(device)
             out[e_b:] = model(last_batch).detach().cpu()
         # out = model(inp_patch)
