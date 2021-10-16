@@ -3,6 +3,7 @@ import os
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+import psutil
 
 from util.h5_util import load_h5_file
 from baselines.baselines_configs import configs
@@ -15,6 +16,8 @@ model_str = "up_patch"
 radius = 50
 path_data_x = "../../../data/t4c2021/temp_test_data/ANTWERP_train_data_x.h5"
 path_data_y = "../../../data/t4c2021/temp_test_data/ANTWERP_train_data_y.h5"
+
+device = "cuda:0"
 
 
 def load_model(path):
@@ -34,6 +37,8 @@ print(test_data_x.shape, test_data_y.shape)
 
 strides, samples, mses_of_patches, mses_of_stitched, corr_mses_of_patches, corr_mses_of_stitched = [], [], [], [], [], []
 model = load_model(model_path)
+model.eval()
+model.to(device)
 
 for i in range(100):
     for stride in [10, 20, 30, 50, 75, 100]:
@@ -46,6 +51,7 @@ for i in range(100):
         # pretransform
         pre_transform = configs[model_str]["pre_transform"]
         inp_patch = pre_transform(patch_collection, from_numpy=True, batch_dim=True)
+        inp_patch.to(device)
 
         # run - batch if it's too big
         internal_batch_size = 50
@@ -56,7 +62,9 @@ for i in range(100):
             s_b = j * internal_batch_size
             e_b = (j + 1) * internal_batch_size
             print("step ", j, s_b, e_b)
+            print("mem before", psutil.virtual_memory()[2])
             out[s_b:e_b] = model(inp_patch[s_b:e_b])
+            print("mem after", psutil.virtual_memory()[2])
         print("last one size", inp_patch[e_b:].size(), j + internal_batch_size)
         out[e_b:] = model(inp_patch[e_b:])
         # out = model(inp_patch)
