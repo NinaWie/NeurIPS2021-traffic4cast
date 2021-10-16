@@ -52,12 +52,12 @@ for i in range(100):
         n_samples = inp_patch.size()[0]
         img_len = inp_patch.size()[2]
         out = torch.zeros(n_samples, 48, img_len, img_len)
-        for i in range(n_samples // internal_batch_size):
-            s_b = i * internal_batch_size
-            e_b = (i + 1) * internal_batch_size
-            print("step ", i, s_b, e_b)
+        for j in range(n_samples // internal_batch_size):
+            s_b = j * internal_batch_size
+            e_b = (j + 1) * internal_batch_size
+            print("step ", j, s_b, e_b)
             out[s_b:e_b] = model(inp_patch[s_b:e_b])
-        print("last one size", inp_patch[e_b:].size(), i + internal_batch_size)
+        print("last one size", inp_patch[e_b:].size(), j + internal_batch_size)
         out[e_b:] = model(inp_patch[e_b:])
         # out = model(inp_patch)
 
