@@ -30,28 +30,23 @@ def load_model(path):
     return model
 
 
-test_data_x = load_h5_file(path_data_x)
-test_data_y = load_h5_file(path_data_y)
-print(test_data_x.shape, test_data_y.shape)
-
-
 strides, samples, mses_of_patches, mses_of_stitched, corr_mses_of_patches, corr_mses_of_stitched = [], [], [], [], [], []
 model = load_model(model_path)
+model = model.to(device)
 model.eval()
-model.to(device)
 
 for i in range(100):
+    x_hour = load_h5_file(path_data_x, sl=slice(i, i + 1), to_torch=False)
+    y_hour = load_h5_file(path_data_x, sl=slice(i, i + 1), to_torch=False)
+    print("loaded data for sample ", i, x_hour.shape, y_hour.shape)
     for stride in [10, 20, 30, 50, 75, 100]:
         print(i, "stride", stride)
-        x_hour = test_data_x[i]
-        y_hour = test_data_y[i]
         # make multiple patches
         patch_collection, avg_arr, index_arr = create_patches(x_hour, radius=radius, stride=stride)
 
         # pretransform
         pre_transform = configs[model_str]["pre_transform"]
         inp_patch = pre_transform(patch_collection, from_numpy=True, batch_dim=True)
-        inp_patch.to(device)
 
         # run - batch if it's too big
         internal_batch_size = 50
@@ -63,7 +58,8 @@ for i in range(100):
             e_b = (j + 1) * internal_batch_size
             print("step ", j, s_b, e_b)
             print("mem before", psutil.virtual_memory()[2])
-            out[s_b:e_b] = model(inp_patch[s_b:e_b])
+            batch_patch = inp_patch[s_b:e_b]
+            out[s_b:e_b] = model(batch_patch)
             print("mem after", psutil.virtual_memory()[2])
         print("last one size", inp_patch[e_b:].size(), j + internal_batch_size)
         out[e_b:] = model(inp_patch[e_b:])
