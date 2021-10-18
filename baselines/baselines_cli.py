@@ -78,54 +78,8 @@ def run_model(
 
     logging.info("dataset has size %s", len(train_dataset))
 
-    # Train / Dev / Test set splits
-    # logging.info("train/dev split")
-    # full_dataset_size = len(train_dataset)
-
-    # effective_dataset_size = full_dataset_size
-    # if limit is not None:
-    #     effective_dataset_size = min(full_dataset_size, limit)
-    # indices = list(range(full_dataset_size))
-    # np.random.seed(random_seed)
-    # np.random.shuffle(indices)
-    # assert np.isclose(train_fraction + val_fraction, 1.0)
-    # num_train_items = max(int(np.floor(train_fraction * effective_dataset_size)), batch_size)
-    # num_val_items = max(int(np.floor(val_fraction * effective_dataset_size)), batch_size)
-    # logging.info(
-    #     "Taking %s from dataset of length %s, splitting into %s train items and %s val items",
-    #     effective_dataset_size,
-    #     full_dataset_size,
-    #     num_train_items,
-    #     num_val_items,
-    # )
-
-    # Data loaders
-    # if geometric:
-    #     train_set, val_set, _ = torch.utils.data.random_split(
-    #         dataset, [num_train_items, num_val_items, full_dataset_size - num_train_items - num_val_items]
-    #     )
-
-    #     train_loader = torch_geometric.data.DataLoader(train_set, batch_size=batch_size, num_workers=num_workers, **dataloader_config)
-    #     val_loader = torch_geometric.data.DataLoader(val_set, batch_size=batch_size, num_workers=num_workers, **dataloader_config)
-    # else:
-    #     train_indices, dev_indices = indices[:num_train_items], indices[num_train_items : num_train_items + num_val_items]
-
-    #     train_sampler = SubsetRandomSampler(train_indices)
-    #     dev_sampler = SubsetRandomSampler(dev_indices)
-
-    #     train_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=train_sampler, **dataloader_config)
-    #     val_loader = DataLoader(dataset, batch_size=batch_size, num_workers=num_workers, sampler=dev_sampler, **dataloader_config)
-
-    train_loader = DataLoader(
-        train_dataset,
-        batch_size=batch_size,
-        shuffle=True,
-        num_workers=num_workers,
-        **dataloader_config,  # , worker_init_fn=lambda _: np.random.seed()
-    )
-    val_loader = DataLoader(
-        val_dataset, batch_size=batch_size, num_workers=num_workers, **dataloader_config  # , worker_init_fn=lambda _: np.random.seed()
-    )
+    train_loader = DataLoader(train_dataset, batch_size=batch_size, shuffle=True, num_workers=num_workers, **dataloader_config,)
+    val_loader = DataLoader(val_dataset, batch_size=batch_size, num_workers=num_workers, **dataloader_config)
 
     # Optimizer
     if "lr" not in optimizer_config:
@@ -205,19 +159,17 @@ def _train_epoch_pure_torch(loader, device, model, optimizer):
         loss_to_print += loss.item()
         if (i + 1) % 50 == 0:
             print(f"train {i+1}/{nr_train_data} ({loss.item()})")
-        # if i % 1000 == 0 and i > 0:
-        #     logging.info("train_loss %s", loss_to_print / 1000)
-        #     loss_to_print = 0
     return loss_to_print
 
 
 @torch.no_grad()
 def _val_pure_torch(loader, device, model, padding=(0, 0, 0, 0)):
+    # For validation, we exclude the padding area because it biases the MSE
     s_x, e_x, s_y, e_y = padding
-    # indexing :0 does not wotk
+    # indexing :0 does not work
     e_x = 1 if e_x == 0 else e_x
     e_y = 1 if e_y == 0 else e_y
-    print("validation with output padding", s_x, e_x, s_y, e_y)
+    print("validation with removal of output padding", s_x, e_x, s_y, e_y)
 
     running_loss = 0
     nr_val_data = len(loader)
@@ -381,22 +333,10 @@ def main(args):
 
     assert args.stride <= 2 * args.radius, "stride must cover data"
     if args.epochs > 0:
-        train_dataset = dataset_class(
-            root_dir=data_raw_path,
-            auto_filter="train",
-            **dataset_config,
-            file_filter=f"**/training/*{args.train_city}*8ch.h5",
-            limit=args.limit,
-            radius=args.radius,
-        )
+        # Make one dataset for training and a separate one for validation
+        train_dataset = dataset_class(root_dir=data_raw_path, auto_filter="train", **dataset_config, limit=args.limit, radius=args.radius,)
         val_dataset = dataset_class(
-            root_dir=data_raw_path,
-            auto_filter="test",
-            **dataset_config,
-            file_filter=f"**/training/*{args.train_city}*8ch.h5",
-            limit=args.val_limit,
-            radius=args.radius,
-            augment=False,
+            root_dir=data_raw_path, auto_filter="test", **dataset_config, limit=args.val_limit, radius=args.radius, augment=False,
         )
         # if geometric:
         #     dataset = T4CGeometricDataset(root=str(Path(data_raw_path).parent), file_filter=file_filter, num_workers=args.num_workers, **dataset_config)
@@ -414,23 +354,21 @@ def main(args):
         dataloader_config = configs[model_str].get("dataloader_config", {})
         optimizer_config = configs[model_str].get("optimizer_config", {})
         if resume_checkpoint is not None:
-            if False:
-                # dictionary of models!
-                ckpt_list = [
-                    "ckpt_berlin_up_2_best.pt",
-                    "ckpt_istanbul_up_2_best.pt",
-                    "ckpt_melbourne_up/epoch_0199.pt",
-                    "ckpt_chicago_up/epoch_0199.pt",
-                ]
-                model = {}
-                for ckpt_city, city in zip(ckpt_list, ["BERLIN", "ISTANBUL", "MELBOURNE", "CHICAGO"]):
-                    logging.info("Reload checkpoint %s", ckpt_city)
-                    model_city = model_class(**model_config)
-                    load_torch_model_from_checkpoint(checkpoint=ckpt_city, model=model_city)
-                    model[city] = model_city
-            else:
-                logging.info("Reload checkpoint %s", resume_checkpoint)
-                load_torch_model_from_checkpoint(checkpoint=resume_checkpoint, model=model)
+            # CODE for using one model per city (make dictionary):
+            # ckpt_list = [
+            #     "ckpt_berlin_up_2_best.pt",
+            #     "ckpt_istanbul_up_2_best.pt",
+            #     "ckpt_melbourne_up/epoch_0199.pt",
+            #     "ckpt_chicago_up/epoch_0199.pt",
+            # ]
+            # model = {}
+            # for ckpt_city, city in zip(ckpt_list, ["BERLIN", "ISTANBUL", "MELBOURNE", "CHICAGO"]):
+            #     logging.info("Reload checkpoint %s", ckpt_city)
+            #     model_city = model_class(**model_config)
+            #     load_torch_model_from_checkpoint(checkpoint=ckpt_city, model=model_city)
+            #     model[city] = model_city
+            logging.info("Reload checkpoint %s", resume_checkpoint)
+            load_torch_model_from_checkpoint(checkpoint=resume_checkpoint, model=model)
 
         if args.epochs > 0:
             logging.info("Going to run train_model.")
@@ -449,7 +387,7 @@ def main(args):
             )
 
     if args.submit:
-        competitions = ["spatiotemporal"]
+        competitions = ["temporal", "spatiotemporal"]
 
         for competition in competitions:
             additional_args = {"radius": args.radius, "stride": args.stride}

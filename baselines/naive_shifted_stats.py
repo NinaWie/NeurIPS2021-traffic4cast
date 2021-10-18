@@ -352,21 +352,21 @@ if __name__ == "__main__":
 
     out_path = os.path.join("data", "temp_test_data")
     # create data
-    # create_test_data(test_city, out_path=out_path, use_additional_from="ISTANBUL")
+    create_test_data(test_city, out_path=out_path, use_additional_from="ISTANBUL")
 
-    train_data_x = load_h5_file(os.path.join(out_path, f"{test_city}_train_data_x.h5"))
-    train_data_y = load_h5_file(os.path.join(out_path, f"{test_city}_train_data_y.h5"))
-    metainfo = load_h5_file(os.path.join(out_path, f"{test_city}_additional.h5"))
-    print("Loaded x and y", train_data_x.shape, train_data_y.shape, metainfo.shape)
+    # train_data_x = load_h5_file(os.path.join(out_path, f"{test_city}_train_data_x.h5"))
+    # train_data_y = load_h5_file(os.path.join(out_path, f"{test_city}_train_data_y.h5"))
+    # metainfo = load_h5_file(os.path.join(out_path, f"{test_city}_additional.h5"))
+    # print("Loaded x and y", train_data_x.shape, train_data_y.shape, metainfo.shape)
 
-    naive_stats = NaiveStatsTemporal()
-    pred_y = naive_stats(torch.from_numpy(train_data_x), torch.from_numpy(metainfo), test_city)
-    print(pred_y.size())
-    print("MSE naive stats", mse(pred_y.numpy(), train_data_y))
+    # naive_stats = NaiveStatsTemporal()
+    # pred_y = naive_stats(torch.from_numpy(train_data_x), torch.from_numpy(metainfo), test_city)
+    # print(pred_y.size())
+    # print("MSE naive stats", mse(pred_y.numpy(), train_data_y))
 
-    from baselines.naive_weighted_average import NaiveWeightedAverage
+    # from baselines.naive_weighted_average import NaiveWeightedAverage
 
-    naive_stats = NaiveWeightedAverage()
-    pred_y = naive_stats(torch.from_numpy(train_data_x))  # , torch.from_numpy(metainfo), test_city)
-    print(pred_y.size())
-    print("MSE avg", mse(pred_y.numpy(), train_data_y))
+    # naive_stats = NaiveWeightedAverage()
+    # pred_y = naive_stats(torch.from_numpy(train_data_x))  # , torch.from_numpy(metainfo), test_city)
+    # print(pred_y.size())
+    # print("MSE avg", mse(pred_y.numpy(), train_data_y))

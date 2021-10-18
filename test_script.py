@@ -11,14 +11,14 @@ from metrics.mse import mse
 from competition.submission.submission import create_patches, stitch_patches
 from util.monitoring import system_status
 
-model_path = "ckpt_average.pt"
-# "../../../scratch/wnina/ckpt_backups/ckpt_patch_2/epoch_0649.pt"
+model_path = "trained_models/ckpt_upp_patch_d100.pt"
 model_str = "up_patch"
 radius = 50
+# Test data must first be created by running python baselines/naive_shifted_stats.py
 path_data_x = "../../../data/t4c2021/temp_test_data/ANTWERP_train_data_x.h5"
 path_data_y = "../../../data/t4c2021/temp_test_data/ANTWERP_train_data_y.h5"
 
-device = "cuda:0"
+device = "cuda"
 
 
 def load_model(path):

@@ -65,6 +65,7 @@ class T4CDataset(Dataset):
                 self.file_filter = f"**/training/*{test_city}*8ch.h5"
             print(self.file_filter)
         self._load_dataset()
+        # Explicitely delete the validation city from the training data
         if auto_filter == "train" and (file_filter is None):
             self.files = [f for f in self.files if not (test_city in str(f))]
 
@@ -125,7 +126,7 @@ class PatchT4CDataset(T4CDataset):
         use_per_file=10,
         radius=50,
         auto_filter: str = "train",
-        augment=True,
+        augment=False,
         **kwargs,
     ):
         super().__init__(root_dir, file_filter=file_filter, auto_filter=auto_filter, limit=limit, transform=transform, use_npy=use_npy)
@@ -147,6 +148,14 @@ class PatchT4CDataset(T4CDataset):
         self.data_x, self.data_y = self._cache_data()
 
     def _cache_data(self):
+        """
+        Load mulitple files, extract patches and return the preprocessed dataset
+
+        Returns
+        -------
+        data_x: Torch tensor with input data
+        data_y: Torch tensor with ground truth
+        """
         print("\n ---------- ", self.internal_counter, self.auto_filter, "MAKE NEW DATASET -------------")
         use_files = np.random.choice(self.files, size=self.n_load_files, replace=False)
         data_x = np.zeros((self.n_load_files * self.use_per_file, 12, 2 * self.radius, 2 * self.radius, 8))
