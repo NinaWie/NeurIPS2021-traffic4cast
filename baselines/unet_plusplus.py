@@ -1,6 +1,11 @@
 import torch
 import torch.nn as nn
 
+"""
+This Pytorch implementation of Unet++ is taken from 
+https://gist.github.com/jinglescode/9d9ed6027e62e389e3165b59209e838e
+"""
+
 
 class conv_block_nested(nn.Module):
     def __init__(self, in_channels, mid_ch, out_ch):
