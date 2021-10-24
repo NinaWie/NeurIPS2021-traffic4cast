@@ -71,21 +71,21 @@ class NaiveStatsTemporal(torch.nn.Module):
 
             # # VERSION 1: compare data from x with stats to get temporal shift
             # get historic data of x time slot:
-            # hist_x = stats[weekday, x_times].astype(float) + 0.01  # to avoid division by zero
-            # # get shift from hour before (2020 / 2019)
-            # shift_2020_2019 = x_timeslot / hist_x
-            # # set all to 1 which were division by close to zero
-            # shift_2020_2019[hist_x == 0.01] = 1
-            # out_hist = out_hist_bef * np.mean(shift_2020_2019, axis=0)
+            hist_x = stats[weekday, x_times].astype(float) + 0.01  # to avoid division by zero
+            # get shift from hour before (2020 / 2019)
+            shift_2020_2019 = x_timeslot / hist_x
+            # set all to 1 which were division by close to zero
+            shift_2020_2019[hist_x == 0.01] = 1
+            out_hist = out_hist_bef * np.mean(shift_2020_2019, axis=0)
 
             # # VERSION 2: Get tempotal shift from other cities
             # incorporate timeshift from other cityes
-            if self.do_shift_other_cities:
-                day_shifts = self.timeshift_arr[:, int(weekday), y_times]
-                out_hist = out_hist_bef.copy()
-                for slot in range(6):
-                    out_hist[slot, :, :, vol_inds] = out_hist[slot, :, :, vol_inds] * day_shifts[0, slot]
-                    out_hist[slot, :, :, speed_inds] = out_hist[slot, :, :, speed_inds] * day_shifts[1, slot]
+            # if self.do_shift_other_cities:
+            #     day_shifts = self.timeshift_arr[:, int(weekday), y_times]
+            #     out_hist = out_hist_bef.copy()
+            #     for slot in range(6):
+            #         out_hist[slot, :, :, vol_inds] = out_hist[slot, :, :, vol_inds] * day_shifts[0, slot]
+            #         out_hist[slot, :, :, speed_inds] = out_hist[slot, :, :, speed_inds] * day_shifts[1, slot]
 
             preds[x_idx] = out_hist
 
