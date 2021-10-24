@@ -37,22 +37,18 @@ model = model.to(device)
 model.eval()
 stride = 30
 
+samples, mse_bl_list, mse_weighted_list, mse_middle_list = [], [], [], []
 out_patch_collection = np.zeros((3, 234, 6, 100, 100, 8))
-for i in range(3):
+for i in range(100):
     x_hour = load_h5_file(path_data_x, sl=slice(i, i + 1), to_torch=False)[0]
-    y_hour = load_h5_file(path_data_x, sl=slice(i, i + 1),
-                          to_torch=False)[0, [0, 1, 2, 5, 8, 11]]
+    y_hour = load_h5_file(path_data_x, sl=slice(i, i + 1), to_torch=False)[0, [0, 1, 2, 5, 8, 11]]
     print("loaded data for sample ", i, x_hour.shape, y_hour.shape)
     # make multiple patches
-    patch_collection, avg_arr, index_arr = create_patches(
-        x_hour, radius=radius, stride=stride
-    )
+    patch_collection, avg_arr, index_arr = create_patches(x_hour, radius=radius, stride=stride)
 
     # pretransform
     pre_transform = configs[model_str]["pre_transform"]
-    inp_patch = pre_transform(
-        patch_collection, from_numpy=True, batch_dim=True
-    )
+    inp_patch = pre_transform(patch_collection, from_numpy=True, batch_dim=True)
 
     # run - batch if it's too big
     internal_batch_size = 50
@@ -73,14 +69,73 @@ for i in range(3):
 
     # post transform
     post_transform = configs[model_str]["post_transform"]
-    out_patch = post_transform(out, city="ANTWERP",
-                               normalize=True).detach().numpy()
+    out_patch = post_transform(out, city="ANTWERP", normalize=True).detach().numpy()
 
     gt_patches, _, _ = create_patches(y_hour, radius=radius, stride=stride)
 
     mse_of_patches = mse(out_patch, gt_patches)
     print("MSE patches", mse_of_patches)
     print(out_patch.shape)
-    out_patch_collection[i] = out_patch
 
-np.save("out_patches.npy", out_patch_collection)
+    # baseline: simply stitch with mean
+    pred = stitch_patches(out_patch, avg_arr, index_arr)
+    mse_of_stitched = np.mean((pred - y_hour) ** 2)
+
+    # stitch with only the most middle one
+    stitched_best = np.zeros(pred.shape)
+    # stitch weighted:
+    stitched_weighted = np.zeros(pred.shape)
+
+    for p_x in range(495):
+        for p_y in range(436):
+            pixel = (p_x, p_y)
+            # find the patches corresponding to this pixel and get the middleness and pred per patch
+            preds, middle = [], []
+            for j, inds in enumerate(index_arr):
+                x_s, x_e, y_s, y_e = inds
+                if x_s <= pixel[0] and x_e > pixel[0] and y_s <= pixel[1] and y_e > pixel[1]:
+                    rel_x, rel_y = int(pixel[0] - x_s), int(pixel[1] - y_s)
+                    # what values were predicted for this pixel?
+                    pred_pixel = out_patch[j, :, rel_x, rel_y, :]
+                    # how much in the middle is a pixel?
+                    pixel_middleness = np.mean([min([pixel[0] - x_s, x_e - pixel[0]]), min([pixel[1] - y_s, y_e - pixel[1]])])
+                    preds.append(pred_pixel)
+                    middle.append(pixel_middleness)
+            stitched_best[:, pixel[0], pixel[1], :] = preds[np.argmax(middle)]
+
+            preds = np.array(preds)
+            if np.sum(middle) == 0:
+                stitched_weighted[:, pixel[0], pixel[1], :] = preds[np.argmax(middle)]
+                continue
+
+            normed_middle = np.array(middle) / np.sum(middle)
+            weighted_preds = np.sum(np.array([preds[some_ind] * normed_middle[some_ind] for some_ind in range(len(preds))]), axis=0)
+            stitched_weighted[:, pixel[0], pixel[1], :] = weighted_preds
+
+    print("mse bl", mse_of_stitched)
+    mse_middle = np.mean((stitched_best - y_hour) ** 2)
+    print("mse middle", mse_middle)
+    mse_weighted = np.mean((stitched_weighted - y_hour) ** 2)
+    print("mse weighted", mse_weighted)
+
+    samples.append(i)
+    mse_bl_list.append(mse_of_stitched)
+    mse_middle_list.append(mse_middle)
+    mse_weighted_list.append(mse_weighted)
+
+    # SAVE EVERY 10 steps
+    if i % 10 == 0:
+        df = pd.DataFrame()
+        df["sample"] = samples
+        df["mse_bl"] = mse_bl_list
+        df["mse_middle"] = mse_middle_list
+        df["mse_weighted"] = mse_weighted_list
+        df.to_csv(f"results_test_script/results_stitching_script_{i}.csv")
+
+
+df = pd.DataFrame()
+df["sample"] = samples
+df["mse_bl"] = mse_bl_list
+df["mse_middle"] = mse_middle_list
+df["mse_weighted"] = mse_weighted_list
+df.to_csv("results_test_script/results_stitching_script.csv")
