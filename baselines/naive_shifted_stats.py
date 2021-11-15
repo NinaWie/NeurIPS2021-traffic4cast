@@ -338,21 +338,23 @@ def create_test_data(test_city, use_additional_from="BERLIN", out_path=None):
     new_additional_data = metainfo
 
     if out_path is not None:
-        write_data_to_h5(train_data_x, os.path.join(out_path, f"{test_city}_train_data_x.h5"))
-        write_data_to_h5(train_data_y, os.path.join(out_path, f"{test_city}_train_data_y.h5"))
-        write_data_to_h5(new_additional_data, os.path.join(out_path, f"{test_city}_additional.h5"))
+        write_data_to_h5(train_data_x, os.path.join(out_path, f"{test_city}_test_spatiotemporal.h5"))
+        write_data_to_h5(train_data_y, os.path.join(out_path, "ground_truth_spatiotemporal.h5"))
+        write_data_to_h5(new_additional_data, os.path.join(out_path, f"{test_city}_test_additional_spatiotemporal.h5"))
     else:
         return train_data_x, train_data_y, new_additional_data
 
 
 if __name__ == "__main__":
     # arr = load_all_historic("BERLIN", 2019)
-    test_city = "ANTWERP"
+    test_city = "BERLIN"
     # eval_on_train_city(test_city)
 
-    out_path = os.path.join("data", "temp_test_data")
+    out_path = os.path.join(BASE_FOLDER, "TEST"+test_city)
+    os.makedirs(out_path)
+
     # create data
-    create_test_data(test_city, out_path=out_path, use_additional_from="ISTANBUL")
+    create_test_data(test_city, out_path=out_path, use_additional_from=test_city)
 
     # train_data_x = load_h5_file(os.path.join(out_path, f"{test_city}_train_data_x.h5"))
     # train_data_y = load_h5_file(os.path.join(out_path, f"{test_city}_train_data_y.h5"))
