@@ -412,11 +412,21 @@ def main(args):
                 **additional_args,
             )
             ground_truth_dir = args.ground_truth_dir
+
             if ground_truth_dir is not None:
                 ground_truth_dir = Path(ground_truth_dir)
-                scorecomp.score_participant(
-                    ground_truth_archive=str(ground_truth_dir / f"ground_truth_{competition}.zip"), input_archive=str(submission)
-                )
+                # scorecomp.score_participant(
+                #     ground_truth_archive=str(ground_truth_dir / f"ground_truth_{competition}.zip"), input_archive=str(submission)
+                # )
+                import zipfile
+                from util.h5_util import load_h5_file
+                from metrics.mse import mse
+                with zipfile.ZipFile(submission, 'r') as zip_ref:
+                    zip_ref.extractall(submission[:-4])
+                preds = load_h5_file(os.path.join(submission[:-4], "TESTBERLIN/TESTBERLIN_test_spatiotemporal.h5"))
+                gt = load_h5_file(os.path.join(ground_truth_dir, "TESTBERLIN/ground_truth_spatiotemporal.h5"))
+                print("MSE", model_str, mse(preds, gt))
+
             else:
                 scorecomp.verify_submission(input_archive=submission, competition=competition)
 
