@@ -4,6 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
 import psutil
+import time
 
 from util.h5_util import load_h5_file
 from baselines.baselines_configs import configs
@@ -14,7 +15,8 @@ model_path = "trained_models/ckpt_upp_patch_d100.pt"
 model_str = "up_patch"
 radius = 50
 # Test data must first be created by running python baselines/naive_shifted_stats.py
-path_data_x = "../../../data/t4c2021/temp_test_data/ANTWERP_train_data_x.h5"
+path_data_x = "../../../data/t4c2021/tests_specialprize/ISTANBUL/ISTANBUL_test_specialprize.h5"
+# "../../../data/t4c2021/temp_test_data/ANTWERP_train_data_x.h5"
 # path_data_y = "../../../data/t4c2021/temp_test_data/ANTWERP_train_data_y.h5"
 
 device = "cuda"
@@ -41,6 +43,7 @@ for i in range(100):
     x_hour = load_h5_file(path_data_x, sl=slice(i, i + 1), to_torch=False)[0]
     # y_hour = load_h5_file(path_data_x, sl=slice(i, i + 1), to_torch=False)[0, [0, 1, 2, 5, 8, 11]]
     print("loaded data for sample ", i, x_hour.shape)  # , y_hour.shape)
+    tic = time.time()
     # make multiple patches
     patch_collection, avg_arr, index_arr = create_patches(
         x_hour, radius=radius, stride=stride
@@ -93,9 +96,9 @@ for i in range(100):
                     pred_pixel = out_patch[j, :, rel_x, rel_y, :]
                     # how much in the middle is a pixel?
                     preds.append(pred_pixel)
-            print(np.std(preds, axis=0).shape)
             std_preds[:, pixel[0], pixel[1], :] = np.std(preds, axis=0)
 
     out_res[i] = std_preds
+    print(time.time() - tic)
 
-np.save("stds.npy", out_res)
+np.save("stds_istanbul.npy", out_res)

@@ -387,7 +387,7 @@ def main(args):
             )
 
     if args.submit:
-        competitions = ["temporal", "spatiotemporal"]
+        competitions = ["specialprize"]
 
         for competition in competitions:
             additional_args = {"radius": args.radius, "stride": args.stride}
@@ -421,14 +421,15 @@ def main(args):
                 import zipfile
                 from util.h5_util import load_h5_file
                 from metrics.mse import mse
+                submission = str(submission)
                 with zipfile.ZipFile(submission, 'r') as zip_ref:
                     zip_ref.extractall(submission[:-4])
-                preds = load_h5_file(os.path.join(submission[:-4], "TESTBERLIN/TESTBERLIN_test_spatiotemporal.h5"))
-                gt = load_h5_file(os.path.join(ground_truth_dir, "TESTBERLIN/ground_truth_spatiotemporal.h5"))
-                print("MSE", model_str, mse(preds, gt))
+                preds = load_h5_file(os.path.join(submission[:-4], "TESTISTANBUL/TESTISTANBUL_test_spatiotemporal.h5"))
+                gt = load_h5_file(os.path.join(ground_truth_dir, "TESTISTANBUL/ground_truth_spatiotemporal.h5"))
+                print("MSE", args.resume_checkpoint, mse(preds, gt))
 
-            else:
-                scorecomp.verify_submission(input_archive=submission, competition=competition)
+#            else:
+#                scorecomp.verify_submission(input_archive=submission, competition=competition)
 
 
 if __name__ == "__main__":

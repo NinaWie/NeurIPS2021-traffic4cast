@@ -130,7 +130,7 @@ def package_submission(
     logging.info(submission)
 
     # competition_files = [os.path.join("data", "temp_test_data", f"ANTWERP_train_data_x.h5")]
-    competition_files = glob.glob(f"{data_raw_path}/**/*test_{competition}.h5", recursive=True)
+    competition_files = glob.glob(f"{data_raw_path}/*/BERLIN/*test_{competition}.h5", recursive=True)
 
     assert len(competition_files) > 0
 
@@ -164,7 +164,7 @@ def package_submission(
                         batch_end: np.ndarray = batch_start + batch_size
                         test_data: np.ndarray = load_h5_file(competition_file, sl=slice(batch_start, batch_end), to_torch=False)
                         additional_data = load_h5_file(
-                            competition_file.replace("test", "test_additional"), sl=slice(batch_start, batch_end), to_torch=False
+                            competition_file.replace("test_", "test_additional_"), sl=slice(batch_start, batch_end), to_torch=False
                         )
                         # additional_data = load_h5_file(
                         #     competition_file.replace("_train_data_x", "_additional"), sl=slice(batch_start, batch_end), to_torch=False

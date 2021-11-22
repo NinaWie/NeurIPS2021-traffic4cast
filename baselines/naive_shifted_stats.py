@@ -13,7 +13,7 @@ import psutil
 import tempfile
 import zipfile
 
-BASE_FOLDER = "data/raw"
+BASE_FOLDER = "../../../data/t4c2021/"
 STATS_FOLDER = "data/stats"
 TIMEDIFF_FOLDER = "data/time_diff_bins"
 speed_inds = [1, 3, 5, 7]
@@ -293,7 +293,7 @@ def submit_city(test_city, mode="hist"):
 
 def create_test_data(test_city, use_additional_from="BERLIN", out_path=None):
     # load weekday info
-    with open(os.path.join("data", "weekday2dates_2020.json"), "r") as infile:
+    with open(os.path.join("data", "weekday2dates_2019.json"), "r") as infile:
         weekday2date = json.load(infile)
     # load additional data from some other city, e.g. berlin
     metainfo = load_h5_file(os.path.join(BASE_FOLDER, use_additional_from, f"{use_additional_from}_test_additional_temporal.h5"))
@@ -338,16 +338,16 @@ def create_test_data(test_city, use_additional_from="BERLIN", out_path=None):
     new_additional_data = metainfo
 
     if out_path is not None:
-        write_data_to_h5(train_data_x, os.path.join(out_path, f"{test_city}_test_spatiotemporal.h5"))
+        write_data_to_h5(train_data_x, os.path.join(out_path, f"TEST{test_city}_test_spatiotemporal.h5"))
         write_data_to_h5(train_data_y, os.path.join(out_path, "ground_truth_spatiotemporal.h5"))
-        write_data_to_h5(new_additional_data, os.path.join(out_path, f"{test_city}_test_additional_spatiotemporal.h5"))
+        write_data_to_h5(new_additional_data, os.path.join(out_path, f"TEST{test_city}_test_additional_spatiotemporal.h5"))
     else:
         return train_data_x, train_data_y, new_additional_data
 
 
 if __name__ == "__main__":
     # arr = load_all_historic("BERLIN", 2019)
-    test_city = "BERLIN"
+    test_city = "ISTANBUL"
     # eval_on_train_city(test_city)
 
     out_path = os.path.join(BASE_FOLDER, "TEST"+test_city)
