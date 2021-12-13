@@ -1,6 +1,7 @@
 # Traffic forecasting on traffic movie snippets
 
-This repo contains all code to reproduce our approach to the IARAI [Traffic4cast 2021](https://www.iarai.ac.at/traffic4cast/) challenge.
+This repo contains all code to reproduce our approach to the IARAI [Traffic4cast 2021](https://www.iarai.ac.at/traffic4cast/) challenge. Our approach was presented at the NeurIPS competition workshop 2021 and the slides of our presentation can be found in this [PDF](presentation_patch_based_approach.pdf). The talk can also be found on [Youtube](https://www.youtube.com/watch?v=YHW70ZAO7b0) (at around 1:45h).
+
 In the challenge, traffic data is provided in movie format, i.e. a rasterised map with volume and average speed values evolving over time.
 The code is based on (and forked from) the code provided by the competition organizers, which can be found [here](https://github.com/iarai/NeurIPS2021-traffic4cast). 
 For further information on the data and the challenge we also refer to the competition [Website](https://www.iarai.ac.at/traffic4cast/) or [GitHub](https://github.com/iarai/NeurIPS2021-traffic4cast).
