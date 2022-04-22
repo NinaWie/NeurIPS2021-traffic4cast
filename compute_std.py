@@ -3,6 +3,8 @@ import os
 import numpy as np
 import time
 import argparse
+import pandas as pd
+from scipy.stats import pearsonr
 
 from util.h5_util import load_h5_file
 from baselines.baselines_configs import configs
@@ -32,11 +34,8 @@ def get_std(out_patch, means, nr_samples_arr, index_arr):
     assert len(out_patch) == len(index_arr)
 
     for i in range(len(out_patch)):
-        (start_x, end_x, start_y,
-         end_y) = tuple(index_arr[i].astype(int).tolist())
-        std_prediction[:, start_x:end_x, start_y:end_y] += (
-            out_patch[i] - means[:, start_x:end_x, start_y:end_y]
-        )**2
+        (start_x, end_x, start_y, end_y) = tuple(index_arr[i].astype(int).tolist())
+        std_prediction[:, start_x:end_x, start_y:end_y] += (out_patch[i] - means[:, start_x:end_x, start_y:end_y]) ** 2
 
     expand_nr_samples_arr = np.tile(np.expand_dims(nr_samples_arr, 2), 8)
 
@@ -55,8 +54,7 @@ def std_v1(out_patch, index_arr, out_shape):
             preds = []
             for j, inds in enumerate(index_arr):
                 x_s, x_e, y_s, y_e = inds
-                if x_s <= pixel[0] and x_e > pixel[0] and y_s <= pixel[
-                    1] and y_e > pixel[1]:
+                if x_s <= pixel[0] and x_e > pixel[0] and y_s <= pixel[1] and y_e > pixel[1]:
                     rel_x, rel_y = int(pixel[0] - x_s), int(pixel[1] - y_s)
                     # what values were predicted for this pixel?
                     pred_pixel = out_patch[j, :, rel_x, rel_y, :]
@@ -66,19 +64,21 @@ def std_v1(out_patch, index_arr, out_shape):
     return std_preds
 
 
+def correlation(err_arr, std_arr):
+    r, p = pearsonr(err_arr.flatten(), std_arr.flatten())
+    return r
+
+
 parser = argparse.ArgumentParser()
-parser.add_argument(
-    '-m',
-    "--model_path",
-    type=str,
-    default="trained_models/ckpt_upp_patch_d100.pt"
-)
-parser.add_argument('-r', "--radius", type=int, default=50)
-parser.add_argument('-t', "--model_type", type=str, default="up_patch")
-parser.add_argument('-d', '--data_path', type=str, required=True)
-parser.add_argument('-o', '--out_path', type=str, default="output_std")
-parser.add_argument('-s', '--stride', type=int, default=30)
-parser.add_argument('-g', '--gpu', type=str, default="cuda")
+parser.add_argument("-m", "--model_path", type=str, default="trained_models/ckpt_upp_patch_d100.pt")
+parser.add_argument("-r", "--radius", type=int, default=50)
+parser.add_argument("-t", "--model_type", type=str, default="up_patch")
+parser.add_argument("-d", "--data_path", type=str, required=True)
+# "data/temp_test_data"
+# "../../../data/t4c2021/temp_test_data"
+parser.add_argument("-o", "--out_path", type=str, default="output_std")
+parser.add_argument("-s", "--stride", type=int, default=30)
+parser.add_argument("-g", "--gpu", type=str, default="cuda")
 args = parser.parse_args()
 
 model_path = args.model_path
@@ -86,11 +86,9 @@ model_str = args.model_type
 radius = args.radius
 stride = args.stride
 # Test data must first be created by running python baselines/naive_shifted_stats.py
-path_data_x = args.data_path
-# "data/temp_test_data/ANTWERP_train_data_x.h5"
-# "../../../data/t4c2021/tests_specialprize/ISTANBUL/ISTANBUL_test_specialprize.h5"
-# "../../../data/t4c2021/temp_test_data/ANTWERP_train_data_x.h5"
-# path_data_y = "../../../data/t4c2021/temp_test_data/ANTWERP_train_data_y.h5"
+path_data_x = os.path.join(args.data_path, "data_x.h5")
+path_data_y = os.path.join(args.data_path, "data_y.h5")
+
 device = args.gpu
 
 os.makedirs(args.out_path, exist_ok=True)
@@ -107,23 +105,25 @@ data_len = len(all_test_data)
 all_test_data = None  # save space
 
 samples, mse_bl_list, mse_weighted_list, mse_middle_list = [], [], [], []
-out_std = np.zeros((data_len, 6, 495, 436, 8))
-out_mean = np.zeros((data_len, 6, 495, 436, 8))
+
+# spatial output --> keep time and channels for analysis, but average over samples
+out_std = np.zeros((6, 495, 436, 8))  # save avg std per cell
+out_err = np.zeros((6, 495, 436, 8))  # save avg err per cell
+
+# save all corelation results in a df
+final_df = []
 
 for i in range(data_len):
     x_hour = load_h5_file(path_data_x, sl=slice(i, i + 1), to_torch=False)[0]
-    print("loaded data for sample ", i, x_hour.shape)
+    y_hour = load_h5_file(path_data_y, sl=slice(i, i + 1), to_torch=False)[0]
+    print("loaded data for sample ", i, x_hour.shape, y_hour.shape)
     tic = time.time()
     # make multiple patches
-    patch_collection, avg_arr, index_arr = create_patches(
-        x_hour, radius=radius, stride=stride
-    )
+    patch_collection, avg_arr, index_arr = create_patches(x_hour, radius=radius, stride=stride)
 
     # pretransform
     pre_transform = configs[model_str]["pre_transform"]
-    inp_patch = pre_transform(
-        patch_collection, from_numpy=True, batch_dim=True
-    )
+    inp_patch = pre_transform(patch_collection, from_numpy=True, batch_dim=True)
 
     # run - batch if it's too big
     internal_batch_size = 50
@@ -152,10 +152,29 @@ for i in range(data_len):
     # stitch for std
     std_preds = get_std(out_patch, pred, avg_arr, index_arr)
 
+    # compute error
+    mse_err = (pred - y_hour) ** 2
+    rmse_err = np.sqrt(mse_err)
+    avg_mse = np.mean(mse_err)
+    print("avg mse:", avg_mse)
+
+    # calibration
+    res_dict = {}
+    res_dict["r_all_mse"] = correlation(mse_err, std_preds)
+    res_dict["r_all_rmse"] = correlation(rmse_err, std_preds)
+    res_dict["r_vol_rmse"] = correlation(rmse_err[:, :, :, [0, 2, 4, 6]], std_preds[:, :, :, [0, 2, 4, 6]])
+    res_dict["r_speed_rmse"] = correlation(rmse_err[:, :, :, [1, 3, 5, 7]], std_preds[:, :, :, [1, 3, 5, 7]])
+    print(res_dict)
+    final_df.append(res_dict)
+
     # save results
-    out_mean[i] = pred
-    out_std[i] = std_preds
+    out_err += rmse_err
+    out_std += std_preds
     print(time.time() - tic)
 
-np.save(os.path.join(args.out_path, "mean.npy"), out_mean)
-np.save(os.path.join(args.out_path, "std.npy"), out_std)
+df = pd.DataFrame(final_df)
+df.to_csv(os.path.join(args.out_path, "correlation_df.csv"), index=False)
+
+# Save to files
+np.save(os.path.join(args.out_path, "err.npy"), out_err / data_len)
+np.save(os.path.join(args.out_path, "std.npy"), out_std / data_len)
