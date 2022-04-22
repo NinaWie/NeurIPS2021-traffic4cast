@@ -1,5 +1,6 @@
 import torch
 import os
+import json
 import numpy as np
 import time
 import argparse
@@ -10,6 +11,7 @@ from util.h5_util import load_h5_file
 from baselines.baselines_configs import configs
 from metrics.mse import mse
 from competition.submission.submission import create_patches, stitch_patches
+from competition.prepare_test_data.prepare_test_data import prepare_test
 
 
 def load_model(path):
@@ -73,9 +75,11 @@ parser = argparse.ArgumentParser()
 parser.add_argument("-m", "--model_path", type=str, default="trained_models/ckpt_upp_patch_d100.pt")
 parser.add_argument("-r", "--radius", type=int, default=50)
 parser.add_argument("-t", "--model_type", type=str, default="up_patch")
-parser.add_argument("-d", "--data_path", type=str, required=True)
-# "data/temp_test_data"
-# "../../../data/t4c2021/temp_test_data"
+parser.add_argument("-d", "--data_path", type=str, default="data/raw")
+# sample from the 2020 data from one city
+parser.add_argument("-c", "--city", type=str, default="ANTWERP")
+# based on the metainfo of another city
+parser.add_argument("-a", "--metacity", type=str, default="BERLIN")
 parser.add_argument("-o", "--out_path", type=str, default="output_std")
 parser.add_argument("-s", "--stride", type=int, default=30)
 parser.add_argument("-g", "--gpu", type=str, default="cuda")
@@ -84,12 +88,18 @@ args = parser.parse_args()
 model_path = args.model_path
 model_str = args.model_type
 radius = args.radius
-stride = args.stride
-# Test data must first be created by running python baselines/naive_shifted_stats.py
-path_data_x = os.path.join(args.data_path, "data_x.h5")
-path_data_y = os.path.join(args.data_path, "data_y.h5")
+data_path = args.data_path
+metacity = args.metacity
+# # V1 To run with test data that is already created by running python baselines/naive_shifted_stats.py
+# "data/temp_test_data"
+# "../../../data/t4c2021/temp_test_data"
+# path_data_x = os.path.join(args.data_path, "data_x.h5")
+# path_data_y = os.path.join(args.data_path, "data_y.h5")
 
 device = args.gpu
+
+# set random seed to make this test dataset reproducible
+np.random.seed(42)
 
 os.makedirs(args.out_path, exist_ok=True)
 
@@ -98,11 +108,11 @@ model = load_model(model_path)
 model = model.to(device)
 model.eval()
 
-# load data ones to get size
-all_test_data = load_h5_file(path_data_x, to_torch=False)
-print("Shape of test data", all_test_data.shape)
-data_len = len(all_test_data)
-all_test_data = None  # save space
+# # V1 load data ones to get size
+# all_test_data = load_h5_file(path_data_x, to_torch=False)
+# print("Shape of test data", all_test_data.shape)
+# data_len = len(all_test_data)
+# all_test_data = None  # save space
 
 samples, mse_bl_list, mse_weighted_list, mse_middle_list = [], [], [], []
 
@@ -113,13 +123,32 @@ out_err = np.zeros((6, 495, 436, 8))  # save avg err per cell
 # save all corelation results in a df
 final_df = []
 
+# load weekday info
+with open(os.path.join(data_path, "weekday2dates_2020.json"), "r") as infile:
+    weekday2date = json.load(infile)
+# load additional data from some other city, e.g. berlin
+metainfo = load_h5_file(os.path.join(data_path, metacity, f"{metacity}_test_additional_temporal.h5"))
+data_len = len(metainfo)
+
 for i in range(data_len):
-    x_hour = load_h5_file(path_data_x, sl=slice(i, i + 1), to_torch=False)[0]
-    y_hour = load_h5_file(path_data_y, sl=slice(i, i + 1), to_torch=False)[0]
+    # get sample based on the i-th sample of the metainfo file
+    day = metainfo[i, 0]
+    timepoint = metainfo[i, 1]
+    possible_dates = weekday2date[str(day)]
+    use_date = np.random.choice(possible_dates)
+    print("weekday", day, "date", use_date, "time", timepoint)
+    print("load file for one day ...", f"{data_path}/{args.city}/training/{use_date}_{args.city}_8ch.h5")
+    two_hours = load_h5_file(f"{data_path}/{args.city}/training/{use_date}_{args.city}_8ch.h5", sl=slice(timepoint, timepoint + 24))
+    x_hour, y_hour = prepare_test(two_hours)
+    print(x_hour.shape, y_hour.shape)
+
+    # # V1: use slice of one file
+    # x_hour = load_h5_file(path_data_x, sl=slice(i, i + 1), to_torch=False)[0]
+    # y_hour = load_h5_file(path_data_y, sl=slice(i, i + 1), to_torch=False)[0]
     print("loaded data for sample ", i, x_hour.shape, y_hour.shape)
     tic = time.time()
     # make multiple patches
-    patch_collection, avg_arr, index_arr = create_patches(x_hour, radius=radius, stride=stride)
+    patch_collection, avg_arr, index_arr = create_patches(x_hour, radius=radius, stride=args.stride)
 
     # pretransform
     pre_transform = configs[model_str]["pre_transform"]
@@ -159,7 +188,8 @@ for i in range(data_len):
     print("avg mse:", avg_mse)
 
     # calibration
-    res_dict = {}
+    res_dict = {"sample": i, "city": args.city, "date": use_date, "time": timepoint, "weekday": day}
+    res_dict["mse"] = avg_mse
     res_dict["r_all_mse"] = correlation(mse_err, std_preds)
     res_dict["r_all_rmse"] = correlation(rmse_err, std_preds)
     res_dict["r_vol_rmse"] = correlation(rmse_err[:, :, :, [0, 2, 4, 6]], std_preds[:, :, :, [0, 2, 4, 6]])
@@ -176,5 +206,5 @@ df = pd.DataFrame(final_df)
 df.to_csv(os.path.join(args.out_path, "correlation_df.csv"), index=False)
 
 # Save to files
-np.save(os.path.join(args.out_path, "err.npy"), out_err / data_len)
-np.save(os.path.join(args.out_path, "std.npy"), out_std / data_len)
+np.save(os.path.join(args.out_path, f"{args.city}_err.npy"), out_err / data_len)
+np.save(os.path.join(args.out_path, f"{args.city}_std.npy"), out_std / data_len)
