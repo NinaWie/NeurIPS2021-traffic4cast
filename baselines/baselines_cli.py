@@ -169,7 +169,6 @@ def _val_pure_torch(loader, device, model, padding=(0, 0, 0, 0)):
     # indexing :0 does not work
     e_x = 1 if e_x == 0 else e_x
     e_y = 1 if e_y == 0 else e_y
-    print("validation with removal of output padding", s_x, e_x, s_y, e_y)
 
     running_loss = 0
     nr_val_data = len(loader)
@@ -276,6 +275,7 @@ def create_parser():
     parser.add_argument("--stride", type=int, default=30, required=False, help="Stride for submission")
     parser.add_argument("--radius", type=int, default=50, required=False, help="Radius for patching")
     parser.add_argument("--train_city", type=str, default=None, required=False, help="Training data city")
+    parser.add_argument("--static_map", action="store_true", default=False, help="Use static map?")
     parser.add_argument(
         "--device_ids", nargs="*", default=None, required=False, help="Whitelist of device ids. If not given, all device ids are taken."
     )
@@ -316,6 +316,7 @@ def main(args):
     dataset_config = configs[model_str].get("dataset_config", {})
     dataset_class = dataset_config.get("dataset", T4CDataset)
     dataset_config.pop("dataset", None)  # delete key if it exists
+    dataset_config["use_static_map"] = args.static_map
 
     data_raw_path = args.data_raw_path
     file_filter = args.file_filter
@@ -349,6 +350,8 @@ def main(args):
     logging.info("Create train_model.")
     model_class = configs[model_str]["model_class"]
     model_config = configs[model_str].get("model_config", {})
+    if args.static_map:
+        model_config["in_channels"] += 9
     model = model_class(**model_config)
     if not model_str.startswith("naive"):
         dataloader_config = configs[model_str].get("dataloader_config", {})
@@ -374,7 +377,6 @@ def main(args):
             logging.info("Going to run train_model.")
             logging.info(system_status())
             padding = dataset_config["transform"].keywords["zeropad2d"]
-            print("PADDING", padding)
             _, device = run_model(
                 train_model=model,
                 train_dataset=train_dataset,
