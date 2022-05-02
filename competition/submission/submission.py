@@ -36,7 +36,7 @@ from util.h5_util import write_data_to_h5
 from util.logging import t4c_apply_basic_logging_config
 
 # cut up
-def create_patches(one_hour, radius=50, stride=50):
+def create_patches(one_hour, radius=50, stride=50, static_map=None):
     tlen, xlen, ylen, chlen = one_hour.shape
     # print(xlen, (xlen - 2*radius), stride, (xlen - 2*radius)//stride)
     nr_in_x = (xlen - 2 * radius) // stride + 2
@@ -45,6 +45,9 @@ def create_patches(one_hour, radius=50, stride=50):
     patch_collection = np.zeros((nr_in_x * nr_in_y, tlen, radius * 2, radius * 2, chlen))  # TODO: 2 auf 8 etc
     avg_arr = np.zeros((xlen, ylen))
     index_arr = np.zeros((nr_in_x * nr_in_y, 4))
+
+    if static_map is not None:
+        data_static = np.zeros((nr_in_x * nr_in_y, 9, radius * 2, radius * 2))
 
     counter = 0
     for x in range(nr_in_x):
@@ -66,6 +69,9 @@ def create_patches(one_hour, radius=50, stride=50):
                 end_y = y * stride + 2 * radius
 
             patch_collection[counter] = one_hour[:, start_x:end_x, start_y:end_y, :]
+            if static_map is not None:
+                data_static[counter] = static_map[:, start_x:end_x, start_y:end_y]
+
             # remember how often each value was updated
             avg_arr[start_x:end_x, start_y:end_y] += 1
             index_arr[counter] = [start_x, end_x, start_y, end_y]
@@ -77,6 +83,8 @@ def create_patches(one_hour, radius=50, stride=50):
     # plt.colorbar()
     # plt.show()
     # exit()
+    if static_map is not None:
+        return patch_collection, avg_arr, index_arr, data_static
     return patch_collection, avg_arr, index_arr
 
 
