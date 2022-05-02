@@ -119,6 +119,7 @@ def package_submission(
     radius: int = 50,
     stride: int = 50,
     submission_file_name: str = None,
+    static_map=False,
     **additional_transform_args,
 ) -> Path:
     tstamp = datetime.datetime.strftime(datetime.datetime.now(), "%Y%m%d%H%M")
@@ -161,6 +162,10 @@ def package_submission(
                     "post_transform", None
                 )
 
+                city = competition_file.split(os.path.sep)[-1].split("_")[0]
+                if static_map:
+                    static_map_arr = load_h5_file(os.path.os.path.join(data_raw_path, city, f"{city}_static.h5"))
+
                 assert num_tests_per_file % batch_size == 0, f"num_tests_per_file={num_tests_per_file} must be a multiple of batch_size={batch_size}"
 
                 num_batches = num_tests_per_file // batch_size
@@ -179,7 +184,12 @@ def package_submission(
                         # )
                         if use_patches:
                             assert test_data.shape[0] == 1, "batch size must be 1"
-                            test_data, avg_arr, index_arr = create_patches(test_data[0], radius=radius, stride=stride)
+                            if static_map:
+                                test_data, avg_arr, index_arr, data_static = create_patches(
+                                    test_data[0], radius=radius, stride=stride, static_map=static_map_arr
+                                )
+                            else:
+                                test_data, avg_arr, index_arr = create_patches(test_data[0], radius=radius, stride=stride)
                             # print("test data", test_data.shape)
                             additional_transform_args["batch_dim"] = True
                             additional_transform_args["from_numpy"] = True
@@ -192,6 +202,11 @@ def package_submission(
                         else:
                             test_data = torch.from_numpy(test_data)
                             test_data = test_data.to(dtype=torch.float)
+
+                        if static_map:
+                            data_static = pre_transform(np.expand_dims(data_static, axis=-1), city=city, **additional_transform_args)
+                            test_data = torch.cat((test_data, data_static), dim=1)
+
                         test_data = test_data.to(device)
                         additional_data = torch.from_numpy(additional_data)
                         additional_data = additional_data.to(device)

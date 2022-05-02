@@ -389,10 +389,10 @@ def main(args):
             )
 
     if args.submit:
-        competitions = ["temporal", "spatiotemporal"]
+        competitions = ["spatiotemporal"]
 
         for competition in competitions:
-            additional_args = {"radius": args.radius, "stride": args.stride}
+            additional_args = {"radius": args.radius, "stride": args.stride, "static_map": args.static_map}
             if geometric:
                 processed_dir = str(Path(data_raw_path).parent)
                 additional_args = {
