@@ -14,9 +14,11 @@ from competition.submission.submission import create_patches, stitch_patches
 from competition.prepare_test_data.prepare_test_data import prepare_test
 
 
-def load_model(path):
+def load_model(path, static_map=False):
     model_class = configs[model_str]["model_class"]
     model_config = configs[model_str].get("model_config", {})
+    if static_map:
+        model_config["in_channels"] += 9
     model = model_class(**model_config, img_len=2 * radius)
     loaded_dict = torch.load(path, map_location=torch.device("cpu"))
     print(loaded_dict["epoch"])
@@ -83,6 +85,7 @@ parser.add_argument("-a", "--metacity", type=str, default="BERLIN")
 parser.add_argument("-o", "--out_path", type=str, default="output_std")
 parser.add_argument("-s", "--stride", type=int, default=30)
 parser.add_argument("-g", "--gpu", type=str, default="cuda")
+parser.add_argument("--static_map", action="store_true", default=False, help="Use static map?")
 args = parser.parse_args()
 
 model_path = args.model_path
@@ -104,7 +107,7 @@ np.random.seed(42)
 os.makedirs(args.out_path, exist_ok=True)
 
 # load model
-model = load_model(model_path)
+model = load_model(model_path, static_map=args.static_map)
 model = model.to(device)
 model.eval()
 
@@ -130,10 +133,14 @@ with open(os.path.join(data_path, "weekday2dates_2020.json"), "r") as infile:
 metainfo = load_h5_file(os.path.join(data_path, metacity, f"{metacity}_test_additional_temporal.h5"))
 data_len = len(metainfo)
 
+# load static map:
+if args.static_map:
+    static_map = load_h5_file(os.path.join(data_path, args.city, f"{args.city}_static.h5"))
+
 for i in range(data_len):
     # get sample based on the i-th sample of the metainfo file
     day = metainfo[i, 0]
-    timepoint = metainfo[i, 1]
+    timepoint = int(metainfo[i, 1])
     possible_dates = weekday2date[str(day)]
     use_date = np.random.choice(possible_dates)
     print("weekday", day, "date", use_date, "time", timepoint)
@@ -148,11 +155,18 @@ for i in range(data_len):
     print("loaded data for sample ", i, x_hour.shape, y_hour.shape)
     tic = time.time()
     # make multiple patches
-    patch_collection, avg_arr, index_arr = create_patches(x_hour, radius=radius, stride=args.stride)
+    if args.static_map:
+        patch_collection, avg_arr, index_arr, data_static = create_patches(x_hour, radius=radius, stride=args.stride, static_map=static_map)
+    else:
+        patch_collection, avg_arr, index_arr = create_patches(x_hour, radius=radius, stride=args.stride)
 
     # pretransform
     pre_transform = configs[model_str]["pre_transform"]
     inp_patch = pre_transform(patch_collection, from_numpy=True, batch_dim=True)
+
+    if args.static_map:
+        data_static = pre_transform(np.expand_dims(data_static, axis=-1), from_numpy=True, batch_dim=True)
+        inp_patch = torch.cat((inp_patch, data_static), dim=1)
 
     # run - batch if it's too big
     internal_batch_size = 50

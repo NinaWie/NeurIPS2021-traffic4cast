@@ -14,7 +14,7 @@ from typing import Any
 from typing import Callable
 from typing import Optional
 from typing import Tuple
-
+import os
 import time
 import numpy as np
 from scipy.ndimage import rotate
@@ -60,7 +60,7 @@ class T4CDataset(Dataset):
             self.file_filter = file_filter
         else:
             if auto_filter == "train":
-                self.file_filter = "**/training/*8ch.h5"
+                self.file_filter = "**/training/2019*8ch.h5"
             elif auto_filter == "test":
                 self.file_filter = f"**/training/*{test_city}*8ch.h5"
             print(self.file_filter)
@@ -68,8 +68,6 @@ class T4CDataset(Dataset):
         # Explicitely delete the validation city from the training data
         if auto_filter == "train" and (file_filter is None):
             self.files = [f for f in self.files if not (test_city in str(f))]
-
-        print("auto filter: ", auto_filter, "examples:", np.random.choice(self.files, 20))
 
     def _load_dataset(self):
         self.files = list(Path(self.root_dir).rglob(self.file_filter))
@@ -126,10 +124,18 @@ class PatchT4CDataset(T4CDataset):
         use_per_file=10,
         radius=50,
         auto_filter: str = "train",
+        use_static_map=False,
         augment=False,
         **kwargs,
     ):
         super().__init__(root_dir, file_filter=file_filter, auto_filter=auto_filter, limit=limit, transform=transform, use_npy=use_npy)
+
+        # load static maps
+        self.use_static_map = use_static_map
+        if self.use_static_map:
+            cities = np.unique([self.get_city_for_file(f) for f in self.files])
+            print("Using static map! - cities in dataset:", cities)
+            self.static_maps = self.get_static_maps(cities)
 
         self.n_load_files = limit  # The number of loaded files depends on whether we have train or test
         self.use_per_file = use_per_file  # use per file is fixed, we have to see how much it falsifies the val acc
@@ -140,12 +146,22 @@ class PatchT4CDataset(T4CDataset):
             self.resample_every_x_epoch = 1
 
         self.augment = augment
-        print("AUGMENT", self.augment)
+        print("Augment data?", self.augment)
         self.internal_counter = 0
         self.auto_filter = auto_filter
         self.radius = radius
 
-        self.data_x, self.data_y = self._cache_data()
+        self._cache_data()
+
+    def get_city_for_file(self, file):
+        return str(file).split("_")[-2]
+
+    def get_static_maps(self, cities):
+        static_dict = {}
+        for city in cities:
+            path_to_static = os.path.join(self.root_dir, city, f"{city}_static.h5")
+            static_dict[city] = load_h5_file(path_to_static)
+        return static_dict
 
     def _cache_data(self):
         """
@@ -158,8 +174,10 @@ class PatchT4CDataset(T4CDataset):
         """
         print("\n ---------- ", self.internal_counter, self.auto_filter, "MAKE NEW DATASET -------------")
         use_files = np.random.choice(self.files, size=self.n_load_files, replace=False)
-        data_x = np.zeros((self.n_load_files * self.use_per_file, 12, 2 * self.radius, 2 * self.radius, 8))
-        data_y = np.zeros((self.n_load_files * self.use_per_file, 6, 2 * self.radius, 2 * self.radius, 8))
+        nr_samples = self.n_load_files * self.use_per_file
+        data_x = np.zeros((nr_samples, 12, 2 * self.radius, 2 * self.radius, 8))
+        data_y = np.zeros((nr_samples, 6, 2 * self.radius, 2 * self.radius, 8))
+        data_static = np.zeros((nr_samples, 9, 2 * self.radius, 2 * self.radius))
         # print("allocated:", data_x.shape, data_y.shape)
         img_plane = (1, 2)
         counter = 0
@@ -197,12 +215,16 @@ class PatchT4CDataset(T4CDataset):
                 # self._load_h5_file(self.files[file_idx], sl=slice(start_hour, start_hour + 12 * 2 + 1))
                 input_data, output_data = prepare_test(two_hours)
 
-                # print("inp and outp", input_data.shape, output_data.shape)
-
                 data_x[counter] = input_data
                 data_y[counter] = output_data
+
+                # add static data
+                if self.use_static_map:
+                    city_of_file = self.get_city_for_file(file)
+                    data_static[counter] = self.static_maps[city_of_file][:, s_x:e_x, s_y:e_y]
                 counter += 1
 
+        # torch and transform
         data_x = self._to_torch(data_x)
         data_y = self._to_torch(data_y)
 
@@ -210,8 +232,16 @@ class PatchT4CDataset(T4CDataset):
             data_x = self.transform(data_x)
             data_y = self.transform(data_y)
 
-        # print("inp and outp after transform", data_x.size(), data_y.size())
-        return data_x, data_y
+        # update dataset
+        self.data_x = data_x
+        self.data_y = data_y
+
+        # concatenate static data to data_x after transform
+        if self.use_static_map:
+            data_static = self._to_torch(data_static)
+            if self.transform is not None:
+                data_static = self.transform(torch.unsqueeze(data_static, dim=-1))
+            self.data_x = torch.cat((self.data_x, data_static), dim=1)
 
     def one_img_cache_data(self):
         """
@@ -247,7 +277,7 @@ class PatchT4CDataset(T4CDataset):
         self.internal_counter += 1
         # print(self.internal_counter, idx)
         if self.internal_counter % (len(self) * self.resample_every_x_epoch) == 0:
-            self.data_x, self.data_y = self._cache_data()
+            self._cache_data()
         return self.data_x[idx], self.data_y[idx]
 
 
