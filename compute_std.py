@@ -133,7 +133,7 @@ data_len = len(metainfo)
 for i in range(data_len):
     # get sample based on the i-th sample of the metainfo file
     day = metainfo[i, 0]
-    timepoint = metainfo[i, 1]
+    timepoint = int(metainfo[i, 1])
     possible_dates = weekday2date[str(day)]
     use_date = np.random.choice(possible_dates)
     print("weekday", day, "date", use_date, "time", timepoint)
