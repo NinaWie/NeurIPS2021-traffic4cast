@@ -195,6 +195,9 @@ for i in range(data_len):
     # stitch for std
     std_preds = get_std(out_patch, pred, avg_arr, index_arr)
 
+    time_predict_with_uncertainty = time.time() - tic
+    print(time_predict_with_uncertainty)
+
     # compute error
     mse_err = (pred - y_hour) ** 2
     rmse_err = np.sqrt(mse_err)
@@ -204,6 +207,7 @@ for i in range(data_len):
     # calibration
     res_dict = {"sample": i, "city": args.city, "date": use_date, "time": timepoint, "weekday": day}
     res_dict["mse"] = avg_mse
+    res_dict["time"] = time_predict_with_uncertainty
     res_dict["r_all_mse"] = correlation(mse_err, std_preds)
     res_dict["r_all_rmse"] = correlation(rmse_err, std_preds)
     res_dict["r_vol_rmse"] = correlation(rmse_err[:, :, :, [0, 2, 4, 6]], std_preds[:, :, :, [0, 2, 4, 6]])
@@ -214,7 +218,6 @@ for i in range(data_len):
     # save results
     out_err += rmse_err
     out_std += std_preds
-    print(time.time() - tic)
 
 df = pd.DataFrame(final_df)
 df.to_csv(os.path.join(args.out_path, "correlation_df.csv"), index=False)
