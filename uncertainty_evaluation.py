@@ -16,7 +16,7 @@ def correlation(err_arr, std_arr):
     return r
 
 
-MIN_DATE_TEST_DATA = "2020-03-01"
+MIN_DATE_TEST_DATA = "2020-04-01"
 
 parser = argparse.ArgumentParser()
 parser.add_argument("-m", "--model_path", type=str, required=True)
