@@ -103,7 +103,7 @@ for i in range(data_len):
     # calibration results - collect in a dictionary
     res_dict = {"sample": i, "city": args.city, "date": use_date, "time": timepoint, "weekday": day}
     res_dict["mse"] = avg_mse
-    res_dict["time"] = time_predict_with_uncertainty
+    res_dict["runtime"] = time_predict_with_uncertainty
     res_dict["r_all_mse"] = correlation(mse_err, uncertainty_scores)
     res_dict["r_all_rmse"] = correlation(rmse_err, uncertainty_scores)
     res_dict["r_vol_rmse"] = correlation(rmse_err[:, :, :, [0, 2, 4, 6]], uncertainty_scores[:, :, :, [0, 2, 4, 6]])
