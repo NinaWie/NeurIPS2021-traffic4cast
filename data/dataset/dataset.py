@@ -60,14 +60,14 @@ class T4CDataset(Dataset):
             self.file_filter = file_filter
         else:
             if auto_filter == "train":
-                self.file_filter = "**/training/2019*8ch.h5"
+                self.file_filter = "**/training/*8ch.h5"
             elif auto_filter == "test":
                 self.file_filter = f"**/training/*{test_city}*8ch.h5"
             print(self.file_filter)
         self._load_dataset()
         # Explicitely delete the validation city from the training data
-        if auto_filter == "train" and (file_filter is None):
-            self.files = [f for f in self.files if not (test_city in str(f))]
+        #if auto_filter == "train" and (file_filter is None):
+           # self.files = [f for f in self.files if not (test_city in str(f))]
 
     def _load_dataset(self):
         self.files = list(Path(self.root_dir).rglob(self.file_filter))

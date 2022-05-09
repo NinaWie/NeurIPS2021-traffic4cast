@@ -163,6 +163,9 @@ def package_submission(
                 )
 
                 city = competition_file.split(os.path.sep)[-1].split("_")[0]
+           
+                if competition == "spatiotemporal" and city not in ["VIENNA", "NEWYORK"]:
+                    continue
                 if static_map:
                     static_map_arr = load_h5_file(os.path.os.path.join(data_raw_path, city, f"{city}_static.h5"))
 
