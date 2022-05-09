@@ -80,6 +80,7 @@ class PatchUncertainty:
             )
         else:
             patch_collection, avg_arr, index_arr = create_patches(x_hour, radius=self.radius, stride=self.stride)
+        print("Number of patches per cell", np.mean(avg_arr), np.median(avg_arr))
 
         # pretransform
         pre_transform = configs[self.model_str]["pre_transform"]
