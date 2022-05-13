@@ -122,6 +122,8 @@ def train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             # Save if best result
+            with open(os.path.join(save_out_dir, "results.json"), "w") as outfile:
+                json.dump(results_dict, outfile)
             save_torch_model_to_checkpoint(model=train_model, epoch=epoch, out_dir=save_out_dir)
         log = "Epoch: {:03d}, Train: {:.4f}, Test: {:.4f}"
         # save results
