@@ -122,7 +122,8 @@ for i in range(495):
     for j in range(436):
         for c in range(8):
             per_cell_calib[i, j, c] = correlation(out_err[:, :, i, j, c], out_std[:, :, i, j, c])
-            print(per_cell_calib[i, j, c])
+            if i % 10 == 0 and j == 200 and c == 1:
+                print(i, per_cell_calib[i, j, c])
 
 # Save the sample-wise calibration results
 df = pd.DataFrame(final_df)
@@ -132,5 +133,5 @@ df.to_csv(os.path.join(args.out_path, "correlation_df.csv"), index=False)
 np.save(os.path.join(args.out_path, f"calibration.npy"), per_cell_calib)
 
 # Save city-wise error and std
-np.save(os.path.join(args.out_path, f"{args.city}_err.npy"), per_cell_err / data_len)
-np.save(os.path.join(args.out_path, f"{args.city}_std.npy"), per_cell_std / data_len)
+np.save(os.path.join(args.out_path, f"spatial_err.npy"), per_cell_err / data_len)
+np.save(os.path.join(args.out_path, f"spatial_std.npy"), per_cell_std / data_len)
