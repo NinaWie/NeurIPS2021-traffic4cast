@@ -68,7 +68,7 @@ class PatchUncertainty:
             model_config["in_channels"] += 9
         model = model_class(**model_config, img_len=2 * self.radius)
         loaded_dict = torch.load(path, map_location=torch.device("cpu"))
-        print("loaded model from epoch", loaded_dict["epoch"])
+        # print("loaded model from epoch", loaded_dict["epoch"])
         model.load_state_dict(loaded_dict["model"])
         return model
 
@@ -80,7 +80,7 @@ class PatchUncertainty:
             )
         else:
             patch_collection, avg_arr, index_arr = create_patches(x_hour, radius=self.radius, stride=self.stride)
-        print("Number of patches per cell", np.mean(avg_arr), np.median(avg_arr))
+        # print("Number of patches per cell", np.mean(avg_arr), np.median(avg_arr))
 
         # pretransform
         pre_transform = configs[self.model_str]["pre_transform"]
@@ -117,5 +117,5 @@ class PatchUncertainty:
         std_preds = get_std(out_patch, pred, avg_arr, index_arr)
 
         # return prediction and uncertainty scores (size (6, 436, 495, 8))
-        print(pred.shape, std_preds.shape)
+        # print(pred.shape, std_preds.shape)
         return pred, std_preds

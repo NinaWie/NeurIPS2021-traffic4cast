@@ -8,7 +8,8 @@ from scipy.stats import pearsonr
 
 from util.h5_util import load_h5_file
 from competition.prepare_test_data.prepare_test_data import prepare_test
-from patch_uncertainty import PatchUncertainty
+from methods_uncertainty.patch_uncertainty import PatchUncertainty
+from methods_uncertainty.unet_uncertainty import UnetUncertainty
 
 
 def correlation(err_arr, std_arr):
