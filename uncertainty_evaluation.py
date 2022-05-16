@@ -50,7 +50,8 @@ else:
     static_map_arr = None
 
 # load model and initialize uncertainty estimation
-uncertainty_estimator = PatchUncertainty(static_map_arr=static_map_arr, **vars(args))
+uncertainty_estimator = UnetUncertainty(**vars(args))
+# PatchUncertainty(static_map_arr=static_map_arr, **vars(args))
 
 samples, mse_bl_list, mse_weighted_list, mse_middle_list = [], [], [], []
 

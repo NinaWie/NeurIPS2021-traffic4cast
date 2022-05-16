@@ -9,7 +9,7 @@ class UnetUncertainty:
         self.model_str = model_str
 
         # load model
-        self.model = self.load_model(model_path, use_static_map=(self.static_map is not None))
+        self.model = self.load_model(model_path)
         self.model = self.model.to(device)
         self.model.eval()
 
@@ -26,9 +26,9 @@ class UnetUncertainty:
 
         # pretransform
         pre_transform = configs[self.model_str]["pre_transform"]
-        inp_data = pre_transform(x_hour, from_numpy=True, batch_dim=True)
+        inp_data = pre_transform(np.expand_dims(x_hour,0), from_numpy=True, batch_dim=True)
 
-        pred = self.model(inp_data).detach().cpu()
+        pred = self.model(inp_data.to(self.device)).detach().cpu()
 
         # post transform
         post_transform = configs[self.model_str]["post_transform"]
