@@ -67,8 +67,8 @@ class T4CDataset(Dataset):
         self._load_dataset()
         print("nr files in ds", len(self.files))
         # Explicitely delete the validation city from the training data
-        #if auto_filter == "train" and (file_filter is None):
-           # self.files = [f for f in self.files if not (test_city in str(f))]
+        if auto_filter == "train" and (file_filter is None):
+            self.files = [f for f in self.files if not (test_city in str(f))]
 
     def _load_dataset(self):
         self.files = list(Path(self.root_dir).rglob(self.file_filter))

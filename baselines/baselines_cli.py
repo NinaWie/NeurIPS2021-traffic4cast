@@ -122,9 +122,9 @@ def train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_
         if val_loss < best_val_loss:
             best_val_loss = val_loss
             # Save if best result
+            save_torch_model_to_checkpoint(model=train_model, epoch=epoch, out_dir=save_out_dir)
             with open(os.path.join(save_out_dir, "results.json"), "w") as outfile:
                 json.dump(results_dict, outfile)
-            save_torch_model_to_checkpoint(model=train_model, epoch=epoch, out_dir=save_out_dir)
         log = "Epoch: {:03d}, Train: {:.4f}, Test: {:.4f}"
         # save results
         results_dict["epoch"].append(epoch)
@@ -133,14 +133,46 @@ def train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_
         logging.info(log.format(epoch, train_loss, val_loss))
         if (epoch + 1) % 50 == 0:
             # Save regularly as backup
+            save_torch_model_to_checkpoint(model=train_model, epoch=epoch, out_dir=save_out_dir, out_name=f"epoch_{epoch:04}")
             with open(os.path.join(save_out_dir, "results.json"), "w") as outfile:
                 json.dump(results_dict, outfile)
-            save_torch_model_to_checkpoint(model=train_model, epoch=epoch, out_dir=save_out_dir, out_name=f"epoch_{epoch:04}")
 
+
+def bayes_criterion(y_pred, y_true, num_channels=8, validate=False):
+    """Loss attenuation"""
+
+    # unstack y true time dimension
+    bs, ts_ch, xsize, ysize = y_true.size()
+    num_time_steps = int(ts_ch / num_channels)
+    # (k, 12 * 8, 495, 436) -> (k, 12, 8, 495, 436)
+    y_true_unstacked = torch.reshape(y_true, (bs, num_time_steps, num_channels, xsize, ysize))
+    
+    # unstack pred and distinguish the mu and sigma
+    y_pred_unstacked = torch.reshape(y_pred, (bs, num_time_steps, num_channels, 2, xsize, ysize))
+
+    # extract mu and sigma
+    mu = y_pred_unstacked[:, :, :, 0] # first output neuron
+
+    # validation: only use mu
+    if validate:
+        return torch.mean((mu - y_true_unstacked)**2)
+
+    log_sig = y_pred_unstacked[:, :, :, 1] # second output neuron
+    sig = torch.exp(log_sig) # undo the log
+    
+    return torch.mean(torch.log(sig**2) + ((y_true_unstacked - mu) / sig)**2)
+
+def bayes_criterion_val(y_pred, y_true, num_channels=8):
+    return bayes_criterion(y_pred, y_true, num_channels=8, validate=True)
 
 def _train_epoch_pure_torch(loader, device, model, optimizer):
     loss_to_print = 0
-    criterion = torch.nn.MSELoss()
+    
+    if hasattr(model, "bayes_loss") and model.bayes_loss:
+        criterion = bayes_criterion
+    else:
+        criterion = torch.nn.MSELoss()
+
     nr_train_data = len(loader)
     for i, (input_data, ground_truth) in enumerate(loader):  # tqdm.tqdm(loader, desc="train")):
         # if isinstance(input_data, torch_geometric.data.Data):
@@ -156,6 +188,8 @@ def _train_epoch_pure_torch(loader, device, model, optimizer):
         output = model(input_data)
         loss = criterion(output, ground_truth)
         loss.backward()
+
+        torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
         optimizer.step()
 
         loss_to_print += loss.item()
@@ -172,6 +206,11 @@ def _val_pure_torch(loader, device, model, padding=(0, 0, 0, 0)):
     e_x = 1 if e_x == 0 else e_x
     e_y = 1 if e_y == 0 else e_y
 
+    if hasattr(model, "bayes_loss") and model.bayes_loss:
+        criterion = bayes_criterion_val
+    else:
+        criterion = torch.nn.MSELoss()
+
     running_loss = 0
     nr_val_data = len(loader)
     for i, (input_data, ground_truth) in enumerate(loader):  # tqdm.tqdm(loader, desc="val"):
@@ -184,7 +223,6 @@ def _val_pure_torch(loader, device, model, padding=(0, 0, 0, 0)):
         ground_truth = ground_truth.to(device)
 
         model.eval()
-        criterion = torch.nn.MSELoss()
         output = model(input_data)
 
         loss = criterion(output[:, :, s_x:-e_x, s_y:-e_y] * 255, ground_truth[:, :, s_x:-e_x, s_y:-e_y] * 255)

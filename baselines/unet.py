@@ -22,7 +22,7 @@ from torch import nn
 
 
 class UNet(nn.Module):
-    def __init__(self, in_channels=1, n_classes=2, depth=5, wf=6, padding=False, batch_norm=False, up_mode="upconv", **kwargs):
+    def __init__(self, in_channels=1, n_classes=2, depth=5, wf=6, padding=False, batch_norm=False, up_mode="upconv", sigmoid_act=True, bayes_loss=False, **kwargs):
         """
         Implementation of
         U-Net: Convolutional Networks for Biomedical Image Segmentation
@@ -48,6 +48,8 @@ class UNet(nn.Module):
         super(UNet, self).__init__()
         assert up_mode in ("upconv", "upsample")
         self.padding = padding
+        self.sigmoid_act = sigmoid_act
+        self.bayes_loss = bayes_loss
         self.depth = depth
         prev_channels = in_channels
         self.down_path = nn.ModuleList()
@@ -72,8 +74,10 @@ class UNet(nn.Module):
 
         for i, up in enumerate(self.up_path):
             x = up(x, blocks[-i - 1])
-
-        return torch.sigmoid(self.last(x))  # TODO
+        if self.sigmoid_act:
+            return torch.sigmoid(self.last(x))
+        else:
+            return self.last(x)
 
 
 class UNetConvBlock(nn.Module):
