@@ -8,7 +8,8 @@ from scipy.stats import pearsonr
 
 from util.h5_util import load_h5_file
 from competition.prepare_test_data.prepare_test_data import prepare_test
-from patch_uncertainty import PatchUncertainty
+from methods_uncertainty.patch_uncertainty import PatchUncertainty
+from methods_uncertainty.unet_uncertainty import UnetUncertainty
 
 
 def correlation(err_arr, std_arr):
@@ -49,13 +50,10 @@ else:
     static_map_arr = None
 
 # load model and initialize uncertainty estimation
-uncertainty_estimator = PatchUncertainty(static_map_arr=static_map_arr, **vars(args))
+uncertainty_estimator = UnetUncertainty(**vars(args))
+# PatchUncertainty(static_map_arr=static_map_arr, **vars(args))
 
 samples, mse_bl_list, mse_weighted_list, mse_middle_list = [], [], [], []
-
-# spatial output --> keep time and channels for analysis, but average over samples
-out_std = np.zeros((6, 495, 436, 8))  # save avg std per cell
-out_err = np.zeros((6, 495, 436, 8))  # save avg err per cell
 
 # save all corelation results in a df
 final_df = []
@@ -66,6 +64,10 @@ with open(os.path.join(data_path, "weekday2dates_2020.json"), "r") as infile:
 # load additional data from some other city, e.g. berlin
 metainfo = load_h5_file(os.path.join(data_path, metacity, f"{metacity}_test_additional_temporal.h5"))
 data_len = len(metainfo)
+
+# spatial output --> keep time and channels for analysis, but average over samples
+out_std = np.zeros((data_len, 6, 495, 436, 8))  # save avg std per cell
+out_err = np.zeros((data_len, 6, 495, 436, 8))  # save avg err per cell
 
 for i in range(data_len):
     # get sample based on the i-th sample of the metainfo file
@@ -112,13 +114,26 @@ for i in range(data_len):
     final_df.append(res_dict)
 
     # save results
-    out_err += rmse_err
-    out_std += uncertainty_scores
+    out_err[i] = rmse_err
+    out_std[i] = uncertainty_scores
+
+per_cell_calib = np.zeros((495, 436, 8))
+per_cell_err = np.sum(out_err, axis=0)
+per_cell_std = np.sum(out_std, axis=0)
+for i in range(495):
+    for j in range(436):
+        for c in range(8):
+            per_cell_calib[i, j, c] = correlation(out_err[:, :, i, j, c], out_std[:, :, i, j, c])
+            if i % 10 == 0 and j == 200 and c == 1:
+                print(i, per_cell_calib[i, j, c])
 
 # Save the sample-wise calibration results
 df = pd.DataFrame(final_df)
 df.to_csv(os.path.join(args.out_path, "correlation_df.csv"), index=False)
 
+# save main result:
+np.save(os.path.join(args.out_path, f"calibration.npy"), per_cell_calib)
+
 # Save city-wise error and std
-np.save(os.path.join(args.out_path, f"{args.city}_err.npy"), out_err / data_len)
-np.save(os.path.join(args.out_path, f"{args.city}_std.npy"), out_std / data_len)
+np.save(os.path.join(args.out_path, f"spatial_err.npy"), per_cell_err / data_len)
+np.save(os.path.join(args.out_path, f"spatial_std.npy"), per_cell_std / data_len)
