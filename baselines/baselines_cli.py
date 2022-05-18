@@ -138,8 +138,8 @@ def train_pure_torch(device, epochs, optimizer, train_loader, val_loader, train_
                 json.dump(results_dict, outfile)
 
 
-def bayes_criterion(y_pred, y_true, num_channels=8, validate=False):
-    """Loss attenuation"""
+def bayes_criterion(y_pred, y_true, num_channels=8, beta=0.5, validate=False):
+    """Loss attenuation according to Seitzer et al 2022"""
 
     # unstack y true time dimension
     bs, ts_ch, xsize, ysize = y_true.size()
@@ -157,10 +157,14 @@ def bayes_criterion(y_pred, y_true, num_channels=8, validate=False):
     if validate:
         return torch.mean((mu - y_true_unstacked)**2)
 
-    log_sig = y_pred_unstacked[:, :, :, 1] # second output neuron
+    # second output neuron is sigma
+    log_sig = y_pred_unstacked[:, :, :, 1].clamp(min=-10)
     sig = torch.exp(log_sig) # undo the log
+
+    # weight by sigma
+    bayes_loss = (sig**beta).detach() * (0.5  * log_sig + ((y_true_unstacked - mu)**2 / (2 *  sig)))
     
-    return torch.mean(torch.log(sig**2) + ((y_true_unstacked - mu) / sig)**2)
+    return torch.mean(bayes_loss)
 
 def bayes_criterion_val(y_pred, y_true, num_channels=8):
     return bayes_criterion(y_pred, y_true, num_channels=8, validate=True)
@@ -169,8 +173,10 @@ def _train_epoch_pure_torch(loader, device, model, optimizer):
     loss_to_print = 0
     
     if hasattr(model, "bayes_loss") and model.bayes_loss:
+        clip_gradients = True
         criterion = bayes_criterion
     else:
+        clip_gradients = False
         criterion = torch.nn.MSELoss()
 
     nr_train_data = len(loader)
@@ -189,7 +195,8 @@ def _train_epoch_pure_torch(loader, device, model, optimizer):
         loss = criterion(output, ground_truth)
         loss.backward()
 
-        torch.nn.utils.clip_grad_norm_(model.parameters(), 1)
+        if clip_gradients:
+            torch.nn.utils.clip_grad_norm_(model.parameters(), 5)
         optimizer.step()
 
         loss_to_print += loss.item()

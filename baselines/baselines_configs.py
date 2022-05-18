@@ -50,7 +50,7 @@ configs = {
                 UNetTransfomer.unet_pre_transform, stack_channels_on_time=True, zeropad2d=(6, 6, 1, 0), batch_dim=False
             )  # TODO: batch dim needs to be True for my new dataset
         },
-        "optimizer_config": {"lr": 1e-6},
+        "optimizer_config": {"lr": 1e-5},
         "pre_transform": partial(
             UNetTransfomer.unet_pre_transform, stack_channels_on_time=True, zeropad2d=(6, 6, 1, 0), batch_dim=True, from_numpy=True
         ),
