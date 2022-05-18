@@ -60,11 +60,12 @@ class T4CDataset(Dataset):
             self.file_filter = file_filter
         else:
             if auto_filter == "train":
-                self.file_filter = "**/training/2019*8ch.h5"
+                self.file_filter = "**/training/*2019*8ch.h5"
             elif auto_filter == "test":
-                self.file_filter = f"**/training/*{test_city}*8ch.h5"
+                self.file_filter = f"**/training/*2020*8ch.h5"
             print(self.file_filter)
         self._load_dataset()
+        print("nr files in ds", len(self.files))
         # Explicitely delete the validation city from the training data
         if auto_filter == "train" and (file_filter is None):
             self.files = [f for f in self.files if not (test_city in str(f))]
@@ -93,6 +94,8 @@ class T4CDataset(Dataset):
         # For testing with __main__ below
         # print(self.files[file_idx], start_hour)
         # return None
+        if idx == 0:
+            print("Idx 0", file_idx, start_hour)
 
         two_hours = self._load_h5_file(self.files[file_idx], sl=slice(start_hour, start_hour + 12 * 2 + 1))
 

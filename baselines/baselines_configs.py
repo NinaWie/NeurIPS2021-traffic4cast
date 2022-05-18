@@ -29,12 +29,28 @@ configs = {
     "unet": {
         "model_class": UNet,
         # zeropad2d the input data with 0 to ensure same size after upscaling by the network inputs [495, 436] -> [496, 448]
-        "model_config": {"in_channels": 12 * 8, "n_classes": 6 * 8, "depth": 5, "wf": 6, "padding": True, "up_mode": "upconv", "batch_norm": True},
+        "model_config": {"in_channels": 12 * 8, "n_classes": 6 * 8, "depth": 5, "wf": 6, "padding": True, "up_mode": "upconv", "batch_norm": True, "sigmoid_act": True},
         "dataset_config": {
             "transform": partial(
                 UNetTransfomer.unet_pre_transform, stack_channels_on_time=True, zeropad2d=(6, 6, 1, 0), batch_dim=False
             )  # TODO: batch dim needs to be True for my new dataset
         },
+        "pre_transform": partial(
+            UNetTransfomer.unet_pre_transform, stack_channels_on_time=True, zeropad2d=(6, 6, 1, 0), batch_dim=True, from_numpy=True
+        ),
+        "post_transform": partial(UNetTransfomer.unet_post_transform, stack_channels_on_time=True, crop=(6, 6, 1, 0), batch_dim=True),
+    },
+    "bayes_unet": {
+        "model_class": UNet,
+        # zeropad2d the input data with 0 to ensure same size after upscaling by the network inputs [495, 436] -> [496, 448]
+        # no sigmoid activation and twice as many classes because prediction mean and std
+        "model_config": {"in_channels": 12 * 8, "n_classes": 6 * 8 * 2, "depth": 5, "wf": 6, "padding": True, "up_mode": "upconv", "batch_norm": True, "sigmoid_act": False, "bayes_loss":True},
+        "dataset_config": {
+            "transform": partial(
+                UNetTransfomer.unet_pre_transform, stack_channels_on_time=True, zeropad2d=(6, 6, 1, 0), batch_dim=False
+            )  # TODO: batch dim needs to be True for my new dataset
+        },
+        "optimizer_config": {"lr": 1e-5},
         "pre_transform": partial(
             UNetTransfomer.unet_pre_transform, stack_channels_on_time=True, zeropad2d=(6, 6, 1, 0), batch_dim=True, from_numpy=True
         ),
