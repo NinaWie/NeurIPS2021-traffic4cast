@@ -10,6 +10,7 @@ from util.h5_util import load_h5_file
 from competition.prepare_test_data.prepare_test_data import prepare_test
 from methods_uncertainty.patch_uncertainty import PatchUncertainty
 from methods_uncertainty.unet_uncertainty import UnetUncertainty
+from methods_uncertainty.attenuation_uncertainty import AttenuationUncertainty
 
 
 def correlation(err_arr, std_arr):
@@ -50,7 +51,9 @@ else:
     static_map_arr = None
 
 # load model and initialize uncertainty estimation
-uncertainty_estimator = UnetUncertainty(**vars(args))
+uncertainty_estimator = AttenuationUncertainty(**vars(args))
+# AttenuationUncertainty(**vars(args))
+# UnetUncertainty(**vars(args))
 # PatchUncertainty(static_map_arr=static_map_arr, **vars(args))
 
 samples, mse_bl_list, mse_weighted_list, mse_middle_list = [], [], [], []

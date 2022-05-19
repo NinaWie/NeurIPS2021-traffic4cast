@@ -36,19 +36,17 @@ class AttenuationUncertainty:
         bs, ts_ch, xsize, ysize = pred.size()
         num_time_steps = int(ts_ch / self.num_channels)
         # (k, 12 * 8, 495, 436) -> (k, 6, 8, 2, 495, 436)
-        pred_unstacked = torch.reshape(pred, (bs, num_time_steps, self.num_channels, 2, xsize, ysize))
+        pred_unstacked = torch.reshape(pred, (bs, num_time_steps // 2, self.num_channels, 2, xsize, ysize))
         # mu and sigma
         mu = pred_unstacked[:, :, :, 0]
         log_sig = pred_unstacked[:, :, :, 1]
         sig = torch.exp(log_sig)
-        print(mu.shape, sig.shape)
-        
-        mu = torch.movedim(mu, 2, 4)
-        sig = torch.movedim(sig, 2, 4)
-        print(mu.shape, sig.shape)
 
         # post transform and return mu and sigma
-        mu_out = self.post_transform(mu, normalize=True, stack_channels_on_time=False).detach().numpy()
-        sig_out = self.post_transform(sig, normalize=True, stack_channels_on_time=False).detach().numpy()
-        print(mu_out.shape, sig_out.shape)
-        return mu_out, sig_out
+        mu_out = self.post_transform(torch.squeeze(mu), normalize=True, stack_channels_on_time=False)
+        sig_out = self.post_transform(torch.squeeze(sig), normalize=True, stack_channels_on_time=False)
+
+        mu_out = torch.movedim(mu_out, 1, 3)
+        sig_out = torch.movedim(sig_out, 1, 3)
+
+        return mu_out.detach().numpy(), sig_out.detach().numpy()
