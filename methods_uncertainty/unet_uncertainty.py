@@ -2,8 +2,7 @@ import torch
 import numpy as np
 from baselines.baselines_configs import configs
 
-
-class UnetUncertainty:
+class UnetBasedUncertainty:
     def __init__(self, model_path, device="cuda", model_str="unet", **kwargs) -> None:
         self.device = device
         self.model_str = model_str
@@ -12,6 +11,11 @@ class UnetUncertainty:
         self.model = self.load_model(model_path)
         self.model = self.model.to(device)
         self.model.eval()
+
+        # pre and post transform:
+        self.pre_transform = configs[self.model_str]["pre_transform"]
+        self.post_transform = configs[self.model_str]["post_transform"]
+
 
     def load_model(self, path, use_static_map=False):
         model_class = configs[self.model_str]["model_class"]
@@ -22,15 +26,16 @@ class UnetUncertainty:
         model.load_state_dict(loaded_dict["model"])
         return model
 
+
+class TrivialUnetUncertainty(UnetBasedUncertainty):
+
     def __call__(self, x_hour):
 
         # pretransform
-        pre_transform = configs[self.model_str]["pre_transform"]
-        inp_data = pre_transform(np.expand_dims(x_hour,0), from_numpy=True, batch_dim=True)
+        inp_data = self.pre_transform(np.expand_dims(x_hour,0), from_numpy=True, batch_dim=True)
 
         pred = self.model(inp_data.to(self.device)).detach().cpu()
 
         # post transform
-        post_transform = configs[self.model_str]["post_transform"]
-        out = post_transform(pred, normalize=True).detach().numpy()
+        out = self.post_transform(pred, normalize=True).detach().numpy()
         return out, out

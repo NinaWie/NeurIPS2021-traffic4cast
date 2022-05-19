@@ -9,8 +9,9 @@ from scipy.stats import pearsonr
 from util.h5_util import load_h5_file
 from competition.prepare_test_data.prepare_test_data import prepare_test
 from methods_uncertainty.patch_uncertainty import PatchUncertainty
-from methods_uncertainty.unet_uncertainty import UnetUncertainty
+from methods_uncertainty.unet_uncertainty import TrivialUnetUncertainty
 from methods_uncertainty.attenuation_uncertainty import AttenuationUncertainty
+from methods_uncertainty.tta_uncertainty import TTAUncertainty
 
 
 def correlation(err_arr, std_arr):
@@ -51,9 +52,10 @@ else:
     static_map_arr = None
 
 # load model and initialize uncertainty estimation
-uncertainty_estimator = AttenuationUncertainty(**vars(args))
+uncertainty_estimator = TTAUncertainty(**vars(args))
 # AttenuationUncertainty(**vars(args))
-# UnetUncertainty(**vars(args))
+# TrivialUnetUncertainty(**vars(args))
+# TTAUncertainty(**vars(args))
 # PatchUncertainty(static_map_arr=static_map_arr, **vars(args))
 
 samples, mse_bl_list, mse_weighted_list, mse_middle_list = [], [], [], []
@@ -68,6 +70,11 @@ with open(os.path.join(data_path, "weekday2dates_2020.json"), "r") as infile:
 metainfo = load_h5_file(os.path.join(data_path, metacity, f"{metacity}_test_additional_temporal.h5"))
 data_len = len(metainfo)
 
+# # Evaluate single timepoint
+# possible_dates = np.array([a for elem in list(weekday2date.values()) for a in elem]) # .flatten()
+# possible_dates = possible_dates[possible_dates > MIN_DATE_TEST_DATA]
+# data_len = len(possible_dates)
+
 # spatial output --> keep time and channels for analysis, but average over samples
 out_std = np.zeros((data_len, 6, 495, 436, 8))  # save avg std per cell
 out_err = np.zeros((data_len, 6, 495, 436, 8))  # save avg err per cell
@@ -80,6 +87,10 @@ for i in range(data_len):
     # select sample from the second half of 2020 data
     possible_dates = possible_dates[possible_dates > MIN_DATE_TEST_DATA]
     use_date = np.random.choice(possible_dates)
+    # # Evaluate single timepoint
+    # day = 0
+    # timepoint = 168
+    # use_date = possible_dates[i]
     print("weekday", day, "date", use_date, "time", timepoint)
 
     # load sample
@@ -129,6 +140,9 @@ for i in range(495):
             per_cell_calib[i, j, c] = correlation(out_err[:, :, i, j, c], out_std[:, :, i, j, c])
             if i % 10 == 0 and j == 200 and c == 1:
                 print(i, per_cell_calib[i, j, c])
+
+print("----- Average cell-wise uncertainty -------- ")
+print(np.nanmean(per_cell_calib))
 
 # Save the sample-wise calibration results
 df = pd.DataFrame(final_df)
