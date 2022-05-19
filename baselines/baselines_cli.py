@@ -144,34 +144,37 @@ def bayes_criterion(y_pred, y_true, num_channels=8, beta=0.5, validate=False):
     # unstack y true time dimension
     bs, ts_ch, xsize, ysize = y_true.size()
     num_time_steps = int(ts_ch / num_channels)
-    # (k, 12 * 8, 495, 436) -> (k, 12, 8, 495, 436)
+    # (k, 6 * 8, 495, 436) -> (k, 6, 8, 495, 436)
     y_true_unstacked = torch.reshape(y_true, (bs, num_time_steps, num_channels, xsize, ysize))
-    
+
     # unstack pred and distinguish the mu and sigma
+    # (k, 6 * 8 * 2, 495, 436) -> (k, 6, 8, 2, 495, 436)
     y_pred_unstacked = torch.reshape(y_pred, (bs, num_time_steps, num_channels, 2, xsize, ysize))
 
     # extract mu and sigma
-    mu = y_pred_unstacked[:, :, :, 0] # first output neuron
+    mu = y_pred_unstacked[:, :, :, 0]  # first output neuron
 
     # validation: only use mu
     if validate:
-        return torch.mean((mu - y_true_unstacked)**2)
+        return torch.mean((mu - y_true_unstacked) ** 2)
 
     # second output neuron is sigma
     log_sig = y_pred_unstacked[:, :, :, 1].clamp(min=-10)
-    sig = torch.exp(log_sig) # undo the log
+    sig = torch.exp(log_sig)  # undo the log
 
     # weight by sigma
-    bayes_loss = (sig**beta).detach() * (0.5  * log_sig + ((y_true_unstacked - mu)**2 / (2 *  sig)))
-    
+    bayes_loss = (sig ** beta).detach() * (0.5 * log_sig + ((y_true_unstacked - mu) ** 2 / (2 * sig)))
+
     return torch.mean(bayes_loss)
+
 
 def bayes_criterion_val(y_pred, y_true, num_channels=8):
     return bayes_criterion(y_pred, y_true, num_channels=8, validate=True)
 
+
 def _train_epoch_pure_torch(loader, device, model, optimizer):
     loss_to_print = 0
-    
+
     if hasattr(model, "bayes_loss") and model.bayes_loss:
         clip_gradients = True
         criterion = bayes_criterion
