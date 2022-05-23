@@ -52,7 +52,7 @@ else:
     static_map_arr = None
 
 # load model and initialize uncertainty estimation
-uncertainty_estimator = TTAUncertainty(**vars(args))
+uncertainty_estimator = AttenuationUncertainty(**vars(args))
 # AttenuationUncertainty(**vars(args))
 # TrivialUnetUncertainty(**vars(args))
 # TTAUncertainty(**vars(args))
@@ -71,9 +71,9 @@ metainfo = load_h5_file(os.path.join(data_path, metacity, f"{metacity}_test_addi
 data_len = len(metainfo)
 
 # # Evaluate single timepoint
-# possible_dates = np.array([a for elem in list(weekday2date.values()) for a in elem]) # .flatten()
-# possible_dates = possible_dates[possible_dates > MIN_DATE_TEST_DATA]
-# data_len = len(possible_dates)
+possible_dates = np.array([a for elem in list(weekday2date.values()) for a in elem]) # .flatten()
+possible_dates = possible_dates[possible_dates > MIN_DATE_TEST_DATA]
+data_len = len(possible_dates)
 
 # spatial output --> keep time and channels for analysis, but average over samples
 out_std = np.zeros((data_len, 6, 495, 436, 8))  # save avg std per cell
@@ -81,16 +81,16 @@ out_err = np.zeros((data_len, 6, 495, 436, 8))  # save avg err per cell
 
 for i in range(data_len):
     # get sample based on the i-th sample of the metainfo file
-    day = metainfo[i, 0]
-    timepoint = int(metainfo[i, 1])
-    possible_dates = np.array(weekday2date[str(day)])
-    # select sample from the second half of 2020 data
-    possible_dates = possible_dates[possible_dates > MIN_DATE_TEST_DATA]
-    use_date = np.random.choice(possible_dates)
+    # day = metainfo[i, 0]
+    # timepoint = int(metainfo[i, 1])
+    # possible_dates = np.array(weekday2date[str(day)])
+    # # select sample from the second half of 2020 data
+    # possible_dates = possible_dates[possible_dates > MIN_DATE_TEST_DATA]
+    # use_date = np.random.choice(possible_dates)
     # # Evaluate single timepoint
-    # day = 0
-    # timepoint = 168
-    # use_date = possible_dates[i]
+    day = 0
+    timepoint = 168
+    use_date = possible_dates[i]
     print("weekday", day, "date", use_date, "time", timepoint)
 
     # load sample
@@ -111,6 +111,7 @@ for i in range(data_len):
     print(time_predict_with_uncertainty)
 
     # compute error
+    real_error = pred - y_hour
     mse_err = (pred - y_hour) ** 2
     rmse_err = np.sqrt(mse_err)
     avg_mse = np.mean(mse_err)
@@ -120,6 +121,7 @@ for i in range(data_len):
     res_dict = {"sample": i, "city": args.city, "date": use_date, "time": timepoint, "weekday": day}
     res_dict["mse"] = avg_mse
     res_dict["runtime"] = time_predict_with_uncertainty
+    res_dict["avg_unc"] = np.mean(uncertainty_scores)
     res_dict["r_all_mse"] = correlation(mse_err, uncertainty_scores)
     res_dict["r_all_rmse"] = correlation(rmse_err, uncertainty_scores)
     res_dict["r_vol_rmse"] = correlation(rmse_err[:, :, :, [0, 2, 4, 6]], uncertainty_scores[:, :, :, [0, 2, 4, 6]])
@@ -128,29 +130,75 @@ for i in range(data_len):
     final_df.append(res_dict)
 
     # save results
-    out_err[i] = rmse_err
+    out_err[i] = y_hour
     out_std[i] = uncertainty_scores
 
-per_cell_calib = np.zeros((495, 436, 8))
-per_cell_err = np.sum(out_err, axis=0)
-per_cell_std = np.sum(out_std, axis=0)
-for i in range(495):
-    for j in range(436):
-        for c in range(8):
-            per_cell_calib[i, j, c] = correlation(out_err[:, :, i, j, c], out_std[:, :, i, j, c])
-            if i % 10 == 0 and j == 200 and c == 1:
-                print(i, per_cell_calib[i, j, c])
+# per_cell_calib = np.zeros((495, 436, 8))
+# per_cell_err = np.sum(out_err, axis=0)
+# per_cell_std = np.sum(out_std, axis=0)
+# for i in range(495):
+#     for j in range(436):
+#         for c in range(8):
+#             per_cell_calib[i, j, c] = correlation(out_err[:, :, i, j, c], out_std[:, :, i, j, c])
+#             if i % 10 == 0 and j == 200 and c == 1:
+#                 print(i, per_cell_calib[i, j, c])
 
-print("----- Average cell-wise uncertainty -------- ")
-print(np.nanmean(per_cell_calib))
+# print("----- Average cell-wise uncertainty -------- ")
+# print(np.nanmean(per_cell_calib))
 
-# Save the sample-wise calibration results
-df = pd.DataFrame(final_df)
-df.to_csv(os.path.join(args.out_path, "correlation_df.csv"), index=False)
+# # Save the sample-wise calibration results
+# df = pd.DataFrame(final_df)
+# df.to_csv(os.path.join(args.out_path, "correlation_df.csv"), index=False)
 
-# save main result:
-np.save(os.path.join(args.out_path, f"calibration.npy"), per_cell_calib)
+# # save main result:
+# np.save(os.path.join(args.out_path, f"calibration.npy"), per_cell_calib)
 
-# Save city-wise error and std
-np.save(os.path.join(args.out_path, f"spatial_err.npy"), per_cell_err / data_len)
-np.save(os.path.join(args.out_path, f"spatial_std.npy"), per_cell_std / data_len)
+# # Save city-wise error and std
+# np.save(os.path.join(args.out_path, f"spatial_err.npy"), per_cell_err / data_len)
+# np.save(os.path.join(args.out_path, f"spatial_std.npy"), per_cell_std / data_len)
+
+
+# ------------- Outlier analysis -------------------
+# take only first prediction in time
+out_err = ((out_err[:, :, :, :, [1,3,5,7]])[:, 0]).astype(float)
+out_std = (out_std[:, :, :, :, [1,3,5,7]])[:, 0]
+print("out shapes", out_err.shape, out_std.shape)
+
+# get mean and std of speed and uncertainty
+# need to do nanmean to remove the zeros
+out_err[out_err == 0] = np.nan
+mean_speed_gt = np.nanmean(out_err, axis=0)
+std_speed_gt = np.nanstd(out_err, axis=0)
+
+mean_unc = np.mean(out_std, axis=0)
+std_unc = np.std(out_std, axis=0)
+
+# find outliers
+for j in range(2):
+    print("----------------------- mode: ", j)
+    for i in [1,2,3,5]:
+        if j == 0:
+            high_outlier_cutoff = mean_speed_gt + i * std_speed_gt
+            inds_outlier = np.where((~np.isnan(high_outlier_cutoff)) & (out_err > high_outlier_cutoff))
+        else:
+            low_outlier_cutoff = mean_speed_gt - i * std_speed_gt
+            inds_outlier = np.where((~np.isnan(high_outlier_cutoff)) & (out_err < low_outlier_cutoff))
+
+        # get corresponding uncertainties
+        unc_at_high_speed = out_std[inds_outlier]
+
+        mean_unc_at_cell = mean_unc[inds_outlier[1:]]
+        std_unc_at_cell = std_unc[inds_outlier[1:]]
+        # unc_significantly_higher = mean_unc_at_cell + 2 * std_unc_at_cell
+
+        # print(unc_at_high_speed.shape, unc_significantly_higher.shape)
+        nr_outliers = unc_at_high_speed.shape[0]
+        print("-------- x std away: ", i)
+        print("Nr outliers", nr_outliers)
+        print("number higher unc:", np.sum(unc_at_high_speed > mean_unc_at_cell) / nr_outliers)
+        print("number unc 1std higher", np.sum(unc_at_high_speed > (mean_unc_at_cell + std_unc_at_cell)) / nr_outliers)
+        print("number unc 2std higher", np.sum(unc_at_high_speed > (mean_unc_at_cell + 2 * std_unc_at_cell)) / nr_outliers)
+        print("number unc 3std higher", np.sum(unc_at_high_speed > (mean_unc_at_cell + 3 * std_unc_at_cell)) / nr_outliers)
+
+
+
