@@ -1,3 +1,4 @@
+from cmath import pi
 import os
 import json
 import numpy as np
@@ -12,6 +13,7 @@ from methods_uncertainty.patch_uncertainty import PatchUncertainty
 from methods_uncertainty.unet_uncertainty import TrivialUnetUncertainty
 from methods_uncertainty.attenuation_uncertainty import AttenuationUncertainty
 from methods_uncertainty.tta_uncertainty import TTAUncertainty
+from metrics.uq_metrics import *
 
 
 def correlation(err_arr, std_arr):
@@ -75,9 +77,8 @@ data_len = len(metainfo)
 # possible_dates = possible_dates[possible_dates > MIN_DATE_TEST_DATA]
 # data_len = len(possible_dates)
 
-# spatial output --> keep time and channels for analysis, but average over samples
-out_std = np.zeros((data_len, 6, 495, 436, 8))  # save avg std per cell
-out_err = np.zeros((data_len, 6, 495, 436, 8))  # save avg err per cell
+# outputs of all samples
+out_samples = np.zeros((data_len, 3, 495, 436, 8))  # save avg std per cell
 
 for i in range(data_len):
     # get sample based on the i-th sample of the metainfo file
@@ -128,29 +129,56 @@ for i in range(data_len):
     final_df.append(res_dict)
 
     # save results
-    out_err[i] = rmse_err
-    out_std[i] = uncertainty_scores
+    out_samples[i, 0] = y_hour[0] # TODO: lost into future (6) dimension
+    out_samples[i, 1] = pred[0]
+    out_samples[i, 2] = uncertainty_scores[0]
 
+assert np.all(out_samples >= 0)
+assert np.all(out_samples[:, 2] > 0)
+
+# 1) ence
+ence_scores = ence(out_samples)
+print(ence_scores.shape)
+np.save(os.path.join(args.out_path, "ence_scores.npy"), ence_scores)
+print("saved ence scores")
+print(np.mean(ence_scores))
+
+print("computing intervals on val set") # TODO
+quantiles = get_quantile(out_samples[:data_len//2], alpha=0.2)
+print(quantiles.shape)
+intervals = get_pred_interval(out_samples[data_len//2:, 1:], quantiles)
+print(intervals.shape)
+
+# 2) coverage
+cov = coverage(intervals, out_samples[data_len//2:, 0])
+print("saved coverage")
+print(np.mean(cov))
+print(cov.shape)
+np.save(os.path.join(args.out_path, "coverage.npy"), cov)
+
+# 3) pi width
+pi_width = mean_pi_width(intervals)
+np.save(os.path.join(args.out_path, "pi_width.npy"), pi_width)
+print("Saved pi width")
+print(np.mean(pi_width))
+print(pi_width.shape)
+
+# 4) correlation
+out_err = np.sqrt((out_samples[:, 0, ...] - out_samples[:, 1, ...])**2)
 per_cell_calib = np.zeros((495, 436, 8))
-per_cell_err = np.sum(out_err, axis=0)
-per_cell_std = np.sum(out_std, axis=0)
 for i in range(495):
     for j in range(436):
         for c in range(8):
-            per_cell_calib[i, j, c] = correlation(out_err[:, :, i, j, c], out_std[:, :, i, j, c])
-            if i % 10 == 0 and j == 200 and c == 1:
-                print(i, per_cell_calib[i, j, c])
-
-print("----- Average cell-wise uncertainty -------- ")
-print(np.nanmean(per_cell_calib))
+            per_cell_calib[i, j, c] = correlation(out_err[:, i, j, c], out_samples[:, 2, i, j, c])
 
 # Save the sample-wise calibration results
 df = pd.DataFrame(final_df)
 df.to_csv(os.path.join(args.out_path, "correlation_df.csv"), index=False)
 
 # save main result:
-np.save(os.path.join(args.out_path, f"calibration.npy"), per_cell_calib)
+np.save(os.path.join(args.out_path, "calibration.npy"), per_cell_calib)
 
 # Save city-wise error and std
-np.save(os.path.join(args.out_path, f"spatial_err.npy"), per_cell_err / data_len)
-np.save(os.path.join(args.out_path, f"spatial_std.npy"), per_cell_std / data_len)
+np.save(os.path.join(args.out_path, "mean_err.npy"), np.mean(out_err, axis=0))
+np.save(os.path.join(args.out_path, "mean_unc.npy"), np.mean(out_samples[:, 2], axis=0))
+

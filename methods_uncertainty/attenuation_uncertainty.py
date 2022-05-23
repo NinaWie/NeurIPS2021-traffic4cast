@@ -30,7 +30,7 @@ class AttenuationUncertainty(UnetBasedUncertainty):
         mu_out = self.post_transform(torch.squeeze(mu), normalize=True, stack_channels_on_time=False)
         sig_out = self.post_transform(torch.squeeze(sig), normalize=True, stack_channels_on_time=False)
 
-        mu_out = torch.movedim(mu_out, 1, 3)
-        sig_out = torch.movedim(sig_out, 1, 3)
+        mu_out = np.clip(torch.movedim(mu_out, 1, 3).detach().numpy(), 0, 255)
+        sig_out = torch.movedim(sig_out, 1, 3).detach().numpy()
 
-        return mu_out.detach().numpy(), sig_out.detach().numpy()
+        return mu_out, sig_out
