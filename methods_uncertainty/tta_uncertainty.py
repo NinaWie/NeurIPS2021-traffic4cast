@@ -20,13 +20,17 @@ class TTAUncertainty(UnetBasedUncertainty):
 
         # pretransform
         inp_data = self.pre_transform(np.expand_dims(x_hour,0), from_numpy=True, batch_dim=True)
-
-        # TODO: apply augmentations here 
         # inp_data: shape (1, 96, 496. 436)
         augmented_inp_data = self.augmentor.transform(inp_data)
         # augmented_inp_data: shape (8, 96, 496. 436) (where 8 = num augmentations)
 
-        pred = self.model(augmented_inp_data.to(self.device)).detach().cpu()
+        # Run model (in batches)
+        augmented_inp_data = augmented_inp_data.to(self.device)
+        res = []
+        for aug_sample in augmented_inp_data:
+            pred_part = self.model(torch.unsqueeze(aug_sample, 0))
+            res.append(pred_part.detach().cpu())
+        pred = torch.stack(res, dim=0).squeeze()
 
         pred_deaugmented = self.augmentor.detransform(pred)
 
@@ -45,24 +49,36 @@ class DataAugmentation:
     https://github.com/alextimans/t4c2021-uncertainty-thesis/blob/main/uq/data_augmentation.py
     """
     def __init__(self):
+        self.transform_names = [
+            "same",
+            "vertical flip",
+            "horizontal_flip",
+            "rotate 90",
+            "rotate 180",
+            "rotate 270",
+            "vertical flip + rot 90",
+            "vertical flip + rot 270"
+            ]
         self.transformations = [
+            lambda x: x,
             TF.vflip,
             TF.hflip,
             partial(TF.rotate, angle=90, expand=True),
-            # partial(TF.rotate, angle=180, expand=True),
+            partial(TF.rotate, angle=180, expand=True),
             partial(TF.rotate, angle=270, expand=True),
-            # tf.Compose([TF.vflip, partial(TF.rotate, angle=90, expand=True)]),
-            # tf.Compose([TF.vflip, partial(TF.rotate, angle=-90, expand=True)])
+            tf.Compose([TF.vflip, partial(TF.rotate, angle=90, expand=True)]),
+            tf.Compose([TF.vflip, partial(TF.rotate, angle=-90, expand=True)])
             ]
 
         self.detransformations = [
+            lambda x: x,
             TF.vflip,
             TF.hflip,
             partial(TF.rotate, angle=-90, expand=True),
-            # partial(TF.rotate, angle=-180, expand=True),
+            partial(TF.rotate, angle=-180, expand=True),
             partial(TF.rotate, angle=-270, expand=True),
-            # tf.Compose([partial(TF.rotate, angle=-90, expand=True), TF.vflip]),
-            # tf.Compose([partial(TF.rotate, angle=90, expand=True), TF.vflip])
+            tf.Compose([partial(TF.rotate, angle=-90, expand=True), TF.vflip]),
+            tf.Compose([partial(TF.rotate, angle=90, expand=True), TF.vflip])
             ]
 
         self.nr_augments = len(self.transformations)
@@ -84,31 +100,32 @@ class DataAugmentation:
                 self.padder = nn.ZeroPad2d((pad_quadratic, 0))
 
         data_padded = self.padder(data)
-        X = data_padded.clone()
+        X = []
         for transform in self.transformations:
             X_aug = transform(data_padded)
-            X = torch.cat((X, X_aug), dim=0)
-        assert list(X.shape) == [1+self.nr_augments] + list(data_padded.shape[1:])
+            X.append(X_aug)
+        X = torch.stack(X, dim=0).squeeze()
+        # assert list(X.shape) == [self.nr_augments] + list(data_padded.shape[1:])
 
         return X
 
     def detransform(self, data: torch.Tensor) -> torch.Tensor:
-
         """
         Receives y_pred = (1+k, 6 * Ch, H, W), detransforms the 
         k augmentations and returns y_pred = (1+k, 6 * Ch, H, W).
         """
-
-        for i, detransform in enumerate(self.detransformations):
-            y_deaug = detransform(data[i+1, ...].unsqueeze(dim=0))
+        Y = []
+        for i in range(len(self.detransformations)):
+            # transform back
+            detransform = self.detransformations[i]
+            y_deaug = detransform(data[i, ...].unsqueeze(dim=0))
             # remove zero padding
             _, _, h, w = y_deaug.size()
             (h_new, w_new) = (h - self.padder.padding[0], w - self.padder.padding[1])
             y_deaug_cropped = y_deaug[:, :, :h_new, :w_new]
             # cat
-            if i ==0:
-                y = y_deaug_cropped
-            else:
-                y = torch.cat((y, y_deaug_cropped), dim=0)
+            Y.append(y_deaug_cropped)
 
-        return y
+        Y = torch.stack(Y, dim=0).squeeze()
+
+        return Y
