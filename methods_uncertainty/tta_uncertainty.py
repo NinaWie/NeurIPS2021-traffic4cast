@@ -1,5 +1,7 @@
+from tkinter import W
 import torch
 import numpy as np
+import torch.nn as nn
 from functools import partial
 import torchvision.transforms as tf
 import torchvision.transforms.functional as TF
@@ -47,52 +49,66 @@ class DataAugmentation:
             TF.vflip,
             TF.hflip,
             partial(TF.rotate, angle=90, expand=True),
-            partial(TF.rotate, angle=180, expand=True),
+            # partial(TF.rotate, angle=180, expand=True),
             partial(TF.rotate, angle=270, expand=True),
-            tf.Compose([TF.vflip, partial(TF.rotate, angle=90, expand=True)]),
-            tf.Compose([TF.vflip, partial(TF.rotate, angle=-90, expand=True)])
+            # tf.Compose([TF.vflip, partial(TF.rotate, angle=90, expand=True)]),
+            # tf.Compose([TF.vflip, partial(TF.rotate, angle=-90, expand=True)])
             ]
 
         self.detransformations = [
             TF.vflip,
             TF.hflip,
             partial(TF.rotate, angle=-90, expand=True),
-            partial(TF.rotate, angle=-180, expand=True),
+            # partial(TF.rotate, angle=-180, expand=True),
             partial(TF.rotate, angle=-270, expand=True),
-            tf.Compose([partial(TF.rotate, angle=-90, expand=True), TF.vflip]),
-            tf.Compose([partial(TF.rotate, angle=90, expand=True), TF.vflip])
+            # tf.Compose([partial(TF.rotate, angle=-90, expand=True), TF.vflip]),
+            # tf.Compose([partial(TF.rotate, angle=90, expand=True), TF.vflip])
             ]
 
         self.nr_augments = len(self.transformations)
 
+        self.padder = None
+
     def transform(self, data: torch.Tensor) -> torch.Tensor:
 
         """
-        Receives X = (1, 12*8, 496, 448) and does k augmentations 
-        returning X' = (1+k, 12*8, 496, 448)
+        Receives X = (1, 12 * Ch, H, W) and does k augmentations 
+        returning X' = (1+k, 12 * Ch, H, W).
         """
+        if self.padder is None:
+            _, _, h, w = data.size()
+            pad_quadratic = abs(h-w)
+            if h > w:
+                self.padder = nn.ZeroPad2d((0, pad_quadratic))
+            else:
+                self.padder = nn.ZeroPad2d((pad_quadratic, 0))
 
-        X = data
+        data_padded = self.padder(data)
+        X = data_padded.clone()
         for transform in self.transformations:
-            X_aug = transform(data)
+            X_aug = transform(data_padded)
             X = torch.cat((X, X_aug), dim=0)
-
-        assert list(X.shape) == [self.nr_augments+1] + list(data.shape[1:])
+        assert list(X.shape) == [1+self.nr_augments] + list(data_padded.shape[1:])
 
         return X
 
     def detransform(self, data: torch.Tensor) -> torch.Tensor:
 
         """
-        Receives y_pred = (1+k, 6*8, 496, 448), detransforms the 
-        k augmentations and returns y_pred = (1+k, 6*8, 496, 448)
+        Receives y_pred = (1+k, 6 * Ch, H, W), detransforms the 
+        k augmentations and returns y_pred = (1+k, 6 * Ch, H, W).
         """
 
-        y = data[0, ...].unsqueeze(dim=0)
         for i, detransform in enumerate(self.detransformations):
             y_deaug = detransform(data[i+1, ...].unsqueeze(dim=0))
-            y = torch.cat((y, y_deaug), dim=0)
-
-        assert y.shape == data.shape
+            # remove zero padding
+            _, _, h, w = y_deaug.size()
+            (h_new, w_new) = (h - self.padder.padding[0], w - self.padder.padding[1])
+            y_deaug_cropped = y_deaug[:, :, :h_new, :w_new]
+            # cat
+            if i ==0:
+                y = y_deaug_cropped
+            else:
+                y = torch.cat((y, y_deaug_cropped), dim=0)
 
         return y
