@@ -6,7 +6,7 @@ import time
 import argparse
 import torch
 import pandas as pd
-from scipy.stats import pearsonr
+from scipy.stats import wilcoxon
 
 from util.h5_util import load_h5_file
 from competition.prepare_test_data.prepare_test_data import prepare_test
@@ -121,4 +121,9 @@ for i in range(data_len):
 df = pd.DataFrame(final_df)
 df.to_csv(os.path.join(args.out_path, "rot_invariance_df.csv"), index=False)
 
+rot_variants = df.drop(["sample", "city", "date", "time", "weekday"], axis=1)
+print(rot_variants.mean().sort_values())
 
+print("Wilcoxon test")
+for method in rot_variants.columns[1:]:
+    print(method, wilcoxon(df["same"].values, df[method].values))
