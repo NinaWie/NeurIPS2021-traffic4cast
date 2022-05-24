@@ -45,7 +45,7 @@ metacity = args.metacity
 # set random seed to make this test dataset reproducible
 np.random.seed(42)
 
-os.makedirs(args.out_path, exist_ok=True)
+os.makedirs(channel_out_path, exist_ok=True)
 
 # load static map:
 if args.static_map:
@@ -78,7 +78,8 @@ data_len = len(metainfo)
 # data_len = len(possible_dates)
 
 # outputs of all samples
-out_samples = np.zeros((data_len, 3, 495, 436, 8))  # save avg std per cell
+out_samples_speed = np.zeros((data_len, 3, 495, 436, 4))  # save avg std per cell
+out_samples_vol = np.zeros((data_len, 3, 495, 436, 4))  # save avg std per cell
 
 for i in range(data_len):
     # get sample based on the i-th sample of the metainfo file
@@ -121,64 +122,80 @@ for i in range(data_len):
     res_dict = {"sample": i, "city": args.city, "date": use_date, "time": timepoint, "weekday": day}
     res_dict["mse"] = avg_mse
     res_dict["runtime"] = time_predict_with_uncertainty
-    res_dict["r_all_mse"] = correlation(mse_err, uncertainty_scores)
-    res_dict["r_all_rmse"] = correlation(rmse_err, uncertainty_scores)
     res_dict["r_vol_rmse"] = correlation(rmse_err[:, :, :, [0, 2, 4, 6]], uncertainty_scores[:, :, :, [0, 2, 4, 6]])
-    res_dict["r_speed_rmse"] = correlation(rmse_err[:, :, :, [1, 3, 5, 7]], uncertainty_scores[:, :, :, [1, 3, 5, 7]])
+    speed_unc = uncertainty_scores[:, :, :, [1, 3, 5, 7]]
+    speed_err = rmse_err[:, :, :, [1, 3, 5, 7]]
+    res_dict["r_speed_rmse"] = correlation(speed_err, speed_unc)
+    # evaluate change of uncertainty over time
+    for ts in range(6):
+        res_dict["mean_unc_"+str(ts)] = np.mean(speed_unc[ts])
+        res_dict["mean_rmse_"+str(ts)] = np.mean(speed_err[ts])
+
     print(res_dict)
     final_df.append(res_dict)
 
-    # save results
-    out_samples[i, 0] = y_hour[0] # TODO: lost into future (6) dimension
-    out_samples[i, 1] = pred[0]
-    out_samples[i, 2] = uncertainty_scores[0]
+    # save results speed
+    out_samples_speed[i, 0] = (y_hour[:, :, :, [1, 3, 5, 7]])[5]
+    out_samples_speed[i, 1] = (pred[:, :, :, [1, 3, 5, 7]])[5]
+    out_samples_speed[i, 2] = speed_unc[5]
+    # save results vol
+    out_samples_vol[i, 0] = (y_hour[:, :, :, [0, 2, 4, 6]])[5]
+    out_samples_vol[i, 1] = (pred[:, :, :, [0, 2, 4, 6]])[5]
+    out_samples_vol[i, 2] = (uncertainty_scores[:, :, :, [0, 2, 4, 6]])[5]
 
-assert np.all(out_samples >= 0)
-assert np.all(out_samples[:, 2] > 0)
+assert np.all(out_samples_speed >= 0)
+assert np.all(out_samples_speed[:, 2] > 0)
 
-# 1) ence
-ence_scores = ence(out_samples)
-print(ence_scores.shape)
-np.save(os.path.join(args.out_path, "ence_scores.npy"), ence_scores)
-print("saved ence scores")
-print(np.mean(ence_scores))
-
-print("computing intervals on val set") # TODO
-quantiles = get_quantile(out_samples[:data_len//2], alpha=0.2)
-print(quantiles.shape)
-intervals = get_pred_interval(out_samples[data_len//2:, 1:], quantiles)
-print(intervals.shape)
-
-# 2) coverage
-cov = coverage(intervals, out_samples[data_len//2:, 0])
-print("saved coverage")
-print(np.mean(cov))
-print(cov.shape)
-np.save(os.path.join(args.out_path, "coverage.npy"), cov)
-
-# 3) pi width
-pi_width = mean_pi_width(intervals)
-np.save(os.path.join(args.out_path, "pi_width.npy"), pi_width)
-print("Saved pi width")
-print(np.mean(pi_width))
-print(pi_width.shape)
-
-# 4) correlation
-out_err = np.sqrt((out_samples[:, 0, ...] - out_samples[:, 1, ...])**2)
-per_cell_calib = np.zeros((495, 436, 8))
-for i in range(495):
-    for j in range(436):
-        for c in range(8):
-            per_cell_calib[i, j, c] = correlation(out_err[:, i, j, c], out_samples[:, 2, i, j, c])
 
 # Save the sample-wise calibration results
 df = pd.DataFrame(final_df)
 df.to_csv(os.path.join(args.out_path, "correlation_df.csv"), index=False)
 
-# save main result:
-np.save(os.path.join(args.out_path, "calibration.npy"), per_cell_calib)
+# compute all scores for speed and vol
+for out_samples, mode_name in zip([out_samples_speed, out_samples_vol], ["speed", "vol"]):
+    # make folder
+    channel_out_path = os.path.join(args.out_path, mode_name)
+    os.makedirs(channel_out_path, exist_ok=True)
 
-# Save city-wise error and std
-np.save(os.path.join(args.out_path, "mean_err.npy"), np.mean(out_err, axis=0))
-np.save(os.path.join(args.out_path, "mean_unc.npy"), np.mean(out_samples[:, 2], axis=0))
+    # 1) ence
+    ence_scores = ence(out_samples)
+    print(ence_scores.shape)
+    np.save(os.path.join(channel_out_path, "ence_scores.npy"), ence_scores)
+    print("saved ence scores")
+    print(np.mean(ence_scores))
+
+    print("computing intervals on val set") # TODO
+    quantiles = get_quantile(out_samples[:data_len//2], alpha=0.2)
+    print(quantiles.shape)
+    intervals = get_pred_interval(out_samples[data_len//2:, 1:], quantiles)
+    print(intervals.shape)
+
+    # 2) coverage
+    cov = coverage(intervals, out_samples[data_len//2:, 0])
+    print("saved coverage")
+    print(np.mean(cov))
+    print(cov.shape)
+    np.save(os.path.join(channel_out_path, "coverage.npy"), cov)
+
+    # 3) pi width
+    pi_width = mean_pi_width(intervals)
+    np.save(os.path.join(channel_out_path, "pi_width.npy"), pi_width)
+    print("Saved pi width")
+    print(np.mean(pi_width))
+    print(pi_width.shape)
+
+    # 4) correlation
+    out_err = np.sqrt((out_samples[:, 0, ...] - out_samples[:, 1, ...])**2)
+    per_cell_calib = np.zeros((495, 436, 8))
+    for i in range(495):
+        for j in range(436):
+            for c in range(8):
+                per_cell_calib[i, j, c] = correlation(out_err[:, i, j, c], out_samples[:, 2, i, j, c])
+
+    # save main result:
+    np.save(os.path.join(channel_out_path, "calibration.npy"), per_cell_calib)
+
+    # Save city-wise error and std
+    np.save(os.path.join(channel_out_path, "mean_err.npy"), np.mean(out_err, axis=0))
+    np.save(os.path.join(channel_out_path, "mean_unc.npy"), np.mean(out_samples[:, 2], axis=0))
 
