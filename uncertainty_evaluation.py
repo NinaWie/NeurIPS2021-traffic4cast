@@ -13,6 +13,7 @@ from methods_uncertainty.patch_uncertainty import PatchUncertainty
 from methods_uncertainty.unet_uncertainty import TrivialUnetUncertainty
 from methods_uncertainty.attenuation_uncertainty import AttenuationUncertainty
 from methods_uncertainty.tta_uncertainty import TTAUncertainty
+from methods_uncertainty.patch_tta_uncertainty import PatchTTAUncertainty
 from metrics.uq_metrics import *
 
 UQ_METHOD_DICT = {
@@ -21,6 +22,7 @@ UQ_METHOD_DICT = {
     "patch": {"model": "patch.pt", "uq_class": PatchUncertainty, "model_str": "up_patch"},
     "staticpatch": {"model": "static_patch.pt", "uq_class": PatchUncertainty, "model_str": "up_patch"},
     "trivial": {"model": "base_unet.pt", "uq_class": TrivialUnetUncertainty, "model_str": "unet"},
+    "patchtta": {"model": "patch.pt", "uq_class": PatchTTAUncertainty, "model_str": "up_patch"},
 }
 
 # constants
