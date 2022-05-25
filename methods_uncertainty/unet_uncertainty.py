@@ -38,4 +38,4 @@ class TrivialUnetUncertainty(UnetBasedUncertainty):
 
         # post transform
         out = self.post_transform(pred, normalize=True).detach().numpy()
-        return out[0], out[0] + .001
+        return out[0], out[0]

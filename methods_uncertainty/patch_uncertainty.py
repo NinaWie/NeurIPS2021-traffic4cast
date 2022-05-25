@@ -118,4 +118,4 @@ class PatchUncertainty:
 
         # return prediction and uncertainty scores (size (6, 436, 495, 8))
         # print(pred.shape, std_preds.shape)
-        return pred, std_preds + .001 # added to avoid zero division error
+        return pred, std_preds
