@@ -233,7 +233,7 @@ for out_samples, mode_name in zip([out_samples_speed, out_samples_vol], ["speed"
     per_cell_calib = corr(out_err, out_samples[:, 2])
     # save pearsonr:
     np.save(os.path.join(channel_out_path, "calibration.npy"), per_cell_calib)
-    print("saved calibration", np.mean(per_cell_calib), per_cell_calib.shape)
+    print("saved calibration", np.nanmean(per_cell_calib), per_cell_calib.shape)
 
     # Save MEAN gt, pred, unc and err
     mean_unc_and_pred = np.mean(out_samples, axis=0)
@@ -245,6 +245,6 @@ for out_samples, mode_name in zip([out_samples_speed, out_samples_vol], ["speed"
     # Save STD gt, pred, unc and err
     std_unc_and_pred = np.std(out_samples, axis=0)
     std_err = np.expand_dims(np.std(out_err, axis=0), 0)
-    unc_pred_err = np.concatenate((std_unc_and_pred, mean_err), axis=0)
+    unc_pred_err = np.concatenate((std_unc_and_pred, std_err), axis=0)
     np.save(os.path.join(channel_out_path, "std_gt_pred_unc_err.npy"), unc_pred_err)
     print("Saved std unc, pred and err - shape", unc_pred_err.shape)

@@ -22,8 +22,14 @@ class UnetBasedUncertainty:
         model_config = configs[self.model_str].get("model_config", {})
         model = model_class(**model_config)
         loaded_dict = torch.load(path, map_location=torch.device("cpu"))
+        if self.model_str == "alex_unet":
+            new_state_dict = {}
+            for key, val in loaded_dict["model"].items():
+                new_state_dict[key[7:]] = val
+        else:
+            new_state_dict = loaded_dict["model"]
         # print("loaded model from epoch", loaded_dict["epoch"])
-        model.load_state_dict(loaded_dict["model"])
+        model.load_state_dict(new_state_dict)
         return model
 
 
@@ -37,5 +43,5 @@ class TrivialUnetUncertainty(UnetBasedUncertainty):
         pred = self.model(inp_data.to(self.device)).detach().cpu()
 
         # post transform
-        out = self.post_transform(pred, normalize=True).detach().numpy()
+        out = self.post_transform(pred).detach().numpy()
         return out[0], out[0]
