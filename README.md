@@ -6,6 +6,8 @@ In the challenge, traffic data is provided in movie format, i.e. a rasterised ma
 The code is based on (and forked from) the code provided by the competition organizers, which can be found [here](https://github.com/iarai/NeurIPS2021-traffic4cast). 
 For further information on the data and the challenge we also refer to the competition [Website](https://www.iarai.ac.at/traffic4cast/) or [GitHub](https://github.com/iarai/NeurIPS2021-traffic4cast).
 
+**This repository also contains our source code for aleatoric uncertainty estimation** This project was done in the context of the [Analysis and Interpretability Challenge](https://www.iarai.ac.at/traffic4cast/2021-competition/challenge/#data). Check the uncertainty estimation README [here](methods_uncertainty/README.md) for instructions to reproduce our uncertainty estimation experiments.
+
 ### Installation and setup
 
 To install the repository and all required packages, run
