@@ -38,10 +38,10 @@ class TTAUncertainty(UnetBasedUncertainty):
         out = self.post_transform(pred_deaugmented, batch_dim=True).detach().numpy()
 
         # summarize augmentations
-        mean_out = np.mean(out, axis=0)
+        # mean_out = np.mean(out, axis=0) # mean is worse than just same-pred
         std_out = np.std(out, axis=0) # uncertainty = std over augmentation predictions
 
-        return mean_out, std_out
+        return out[0], std_out
 
 
 class DataAugmentation:

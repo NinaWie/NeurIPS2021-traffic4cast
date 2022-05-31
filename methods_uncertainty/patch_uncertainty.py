@@ -72,7 +72,7 @@ class PatchUncertainty:
         model.load_state_dict(loaded_dict["model"])
         return model
 
-    def __call__(self, x_hour):
+    def get_input_patches(self, x_hour):
         # divide into patches
         if self.static_map is not None:
             patch_collection, avg_arr, index_arr, data_static = create_patches(
@@ -90,8 +90,10 @@ class PatchUncertainty:
             data_static = pre_transform(np.expand_dims(data_static, axis=-1), from_numpy=True, batch_dim=True)
             inp_patch = torch.cat((inp_patch, data_static), dim=1)
 
-        # run - batch if it's too big
-        internal_batch_size = 50
+        return inp_patch, avg_arr, index_arr
+
+    def predict_patches(self, inp_patch, internal_batch_size = 50):
+        """Pass all patches through the model in batches"""
         n_samples = inp_patch.size()[0]
         img_len = inp_patch.size()[2]
         out = torch.zeros(n_samples, 48, img_len, img_len)
@@ -105,7 +107,19 @@ class PatchUncertainty:
         if n_samples % internal_batch_size != 0:
             last_batch = inp_patch[e_b:].to(self.device)
             out[e_b:] = self.model(last_batch).detach().cpu()
-        # out = model(inp_patch)
+        return out
+
+    def process_patches(self, inp_patch, avg_arr, index_arr):
+        # basic version: just run patches
+        out_patch = self.predict_patches(inp_patch)
+        return out_patch, avg_arr, index_arr
+
+    def __call__(self, x_hour):
+        # split into patches
+        inp_patch, avg_arr, index_arr = self.get_input_patches(x_hour)
+        
+        # run - batch if it's too big
+        out, avg_arr, index_arr = self.process_patches(inp_patch, avg_arr, index_arr)
 
         # post transform
         post_transform = configs[self.model_str]["post_transform"]
@@ -118,4 +132,4 @@ class PatchUncertainty:
 
         # return prediction and uncertainty scores (size (6, 436, 495, 8))
         # print(pred.shape, std_preds.shape)
-        return pred, std_preds + .001 # added to avoid zero division error
+        return pred, std_preds

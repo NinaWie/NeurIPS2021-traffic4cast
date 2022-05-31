@@ -44,5 +44,4 @@ class TrivialUnetUncertainty(UnetBasedUncertainty):
 
         # post transform
         out = self.post_transform(pred).detach().numpy()
-        out = np.clip(out, 0, 255)
-        return out[0], out[0] + .001
+        return out[0], out[0]

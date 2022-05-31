@@ -5,6 +5,28 @@ CODE TAKEN FROM
 https://github.com/alextimans/t4c2021-uncertainty-thesis/
 """
 
+def corr(error, unc):
+
+    """
+    Receives: prediction tensor (samples, 2, 6, H, W, Ch), where 2nd dim '2'
+    is error metric (0), uncertainty measure (1).
+    Returns: pearson correlation coefficient across the sample dimension as
+    (6, H, W, Ch).
+    Formula: sum[(x - x_mean)(y - y_mean)] * 1/sqrt(sum((x - x_mean)^2)) * 1/sqrt(sum((y - y_mean)^2))
+    """
+
+    return (
+        np.sum(
+            (error - np.mean(error, axis=0)) * (unc- np.mean(unc, axis=0)), axis=0
+            ) * (
+                1 / np.sqrt(np.sum((error - np.mean(error, axis=0))**2, axis=0)
+                )
+            ) * (
+                1 / np.sqrt(np.sum((unc - np.mean(unc, axis=0))**2, axis=0)
+                )
+            )
+        )
+
 def ence(pred):
 
    """
