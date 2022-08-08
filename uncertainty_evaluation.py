@@ -18,7 +18,10 @@ from metrics.uq_metrics import *
 
 UQ_METHOD_DICT = {
     "tta": {"model": "base_unet.pt", "uq_class": TTAUncertainty, "model_str": "unet"},
+    "ttapp": {"model": "unetpp.pt", "uq_class": TTAUncertainty, "model_str": "unet_plusplus"},
     "attenuation": {"model": "bayes_unet.pt", "uq_class": AttenuationUncertainty, "model_str": "bayes_unet"},
+    "attenuationpp": {"model": "bayes_unetpp.pt", "uq_class": AttenuationUncertainty, "model_str": "bayes_unetpp"},
+    "upatch": {"model": "upatch_new.pt", "uq_class": PatchUncertainty, "model_str": "u_patch"},
     "patch": {"model": "patch.pt", "uq_class": PatchUncertainty, "model_str": "up_patch"},
     "staticpatch": {"model": "static_patch.pt", "uq_class": PatchUncertainty, "model_str": "up_patch"},
     "trivial": {"model": "base_unet.pt", "uq_class": TrivialUnetUncertainty, "model_str": "unet"},
@@ -137,7 +140,6 @@ for i in range(data_len):
 
     # Run uncertainty-aware model
     pred, uncertainty_scores = uncertainty_estimator(x_hour)
-
     time_predict_with_uncertainty = time.time() - tic
     print("time processing", time_predict_with_uncertainty)
 

@@ -29,8 +29,9 @@ class conv_block_nested(nn.Module):
 
 
 class Nested_UNet(nn.Module):
-    def __init__(self, in_channels=3, n_classes=1, **kwargs):
+    def __init__(self, in_channels=3, n_classes=1, bayes_loss=False, **kwargs):
         super(Nested_UNet, self).__init__()
+        self.bayes_loss = bayes_loss
 
         n1 = 64
         filters = [n1, n1 * 2, n1 * 4, n1 * 8, n1 * 16]
